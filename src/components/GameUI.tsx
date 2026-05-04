@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import {
@@ -20,6 +21,8 @@ import { ShipPlacement } from "./ShipPlacement";
 import { CoachPanel } from "./CoachPanel";
 import { useAuth } from "./AuthProvider";
 import { recordGame, recordLocalLeaderboard, syncCloudLeaderboard, loadStats } from "@/lib/storage";
+import { supabaseEnabled } from "@/lib/supabase/client";
+import { createRoom, getCurrentPlayerId } from "@/lib/game/multiplayer";
 
 type Phase = "menu" | "placing" | "playing" | "over";
 type Turn = "player" | "ai";
@@ -218,6 +221,10 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
             className="grid gap-6"
           >
             <Hero />
+            <PlayOnlineCard />
+            <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim text-center">
+              · or play vs AI ·
+            </div>
             <div className="grid md:grid-cols-2 gap-4">
               <ModeCard
                 title="Classic"
@@ -522,4 +529,84 @@ function ShipStatus({ title, ships, reveal }: { title: string; ships: Ship[]; re
 
 function labelOf(r: number, c: number) {
   return `${"ABCDEFGHIJ"[c]}${r + 1}`;
+}
+
+function PlayOnlineCard() {
+  const router = useRouter();
+  const { profile } = useAuth();
+  const cloud = supabaseEnabled();
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onPlayOnline = async () => {
+    if (!cloud) {
+      setError("Online play requires Supabase env vars.");
+      return;
+    }
+    if (creating) return;
+    setError(null);
+    setCreating(true);
+    try {
+      const id = await getCurrentPlayerId();
+      const room = await createRoom(id, profile.username || "Captain");
+      if (!room) {
+        setError("Could not create room. Run supabase/multiplayer.sql first.");
+        setCreating(false);
+        return;
+      }
+      router.push(`/room/${room.id}`);
+    } catch {
+      setError("Could not create room.");
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="glass neon-border rounded-3xl p-5 sm:p-6 relative overflow-hidden">
+      <motion.div
+        className="absolute -top-16 -right-16 w-48 h-48 rounded-full pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(circle, color-mix(in oklab, var(--accent-2) 35%, transparent), transparent 70%)",
+        }}
+        animate={{ scale: [1, 1.2, 1] }}
+        transition={{ duration: 6, repeat: Infinity }}
+      />
+      <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5">
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
+            Multiplayer · Beta
+          </div>
+          <h3 className="text-2xl sm:text-3xl font-extrabold neon-text">
+            🌐 Play Online vs Friend
+          </h3>
+          <p className="text-sm text-fg-dim mt-1 max-w-md">
+            Spin up a private lobby, share the invite link, and trade salvos in
+            real time — with chat.
+          </p>
+          {error && (
+            <p className="text-xs text-red-300 mt-2">{error}</p>
+          )}
+          {!cloud && (
+            <p className="text-[11px] text-fg-dim mt-2">
+              Configure <code>NEXT_PUBLIC_SUPABASE_URL</code> &amp;{" "}
+              <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to enable.
+            </p>
+          )}
+        </div>
+        <motion.button
+          whileHover={{ y: -2 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={onPlayOnline}
+          disabled={creating || !cloud}
+          className={clsx(
+            "neon-btn rounded-2xl px-5 py-3 font-bold pulse-glow whitespace-nowrap",
+            (creating || !cloud) && "opacity-60 cursor-not-allowed"
+          )}
+        >
+          {creating ? "Creating room…" : "Create Room"}
+        </motion.button>
+      </div>
+    </div>
+  );
 }
