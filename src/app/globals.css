@@ -1,26 +1,298 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #06070d;
+  --bg-soft: #0b0f1f;
+  --fg: #e7ecff;
+  --fg-dim: #9aa5d3;
+  --accent: #00f0ff;
+  --accent-2: #ff2bd6;
+  --accent-3: #7c5cff;
+  --grid-line: rgba(124, 92, 255, 0.18);
+  --glass: rgba(15, 20, 40, 0.55);
+  --glass-border: rgba(124, 92, 255, 0.28);
+}
+
+:root[data-theme="light"] {
+  --bg: #f4f6ff;
+  --bg-soft: #ffffff;
+  --fg: #0a0f24;
+  --fg-dim: #4a557e;
+  --accent: #0066ff;
+  --accent-2: #c026d3;
+  --accent-3: #6d28d9;
+  --grid-line: rgba(13, 22, 60, 0.12);
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(13, 22, 60, 0.12);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-bg-soft: var(--bg-soft);
+  --color-fg: var(--fg);
+  --color-fg-dim: var(--fg-dim);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-3: var(--accent-3);
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+html {
+  color-scheme: dark;
+}
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Animated background field */
+.bg-field {
+  background:
+    radial-gradient(1200px 800px at 20% -10%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 60%),
+    radial-gradient(900px 700px at 90% 10%, color-mix(in oklab, var(--accent-2) 18%, transparent), transparent 60%),
+    radial-gradient(1100px 700px at 50% 110%, color-mix(in oklab, var(--accent-3) 22%, transparent), transparent 60%),
+    var(--bg);
+  position: relative;
+  overflow: clip;
+}
+
+.bg-field::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 50% 40%, black 0%, transparent 75%);
+  pointer-events: none;
+  animation: gridDrift 30s linear infinite;
+}
+
+@keyframes gridDrift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(48px, 48px);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.bg-field::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.02) 0px,
+    rgba(255, 255, 255, 0.02) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.neon-text {
+  text-shadow:
+    0 0 12px color-mix(in oklab, var(--accent) 45%, transparent),
+    0 0 28px color-mix(in oklab, var(--accent-2) 25%, transparent);
+}
+
+.neon-border {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 50%, transparent),
+    0 0 22px color-mix(in oklab, var(--accent) 35%, transparent),
+    inset 0 0 18px color-mix(in oklab, var(--accent-3) 18%, transparent);
+}
+
+.neon-btn {
+  position: relative;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--accent) 28%, transparent), color-mix(in oklab, var(--accent-2) 28%, transparent));
+  border: 1px solid color-mix(in oklab, var(--accent) 60%, transparent);
+  color: var(--fg);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.2s ease;
+}
+.neon-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.15);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 70%, transparent),
+    0 8px 32px color-mix(in oklab, var(--accent-2) 35%, transparent);
+}
+.neon-btn:active {
+  transform: translateY(0);
+}
+
+/* Cell base */
+.cell {
+  position: relative;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent-3) 8%, transparent), color-mix(in oklab, var(--accent) 5%, transparent));
+  border: 1px solid var(--grid-line);
+  transition: background 0.2s, transform 0.15s;
+}
+.cell:hover {
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+}
+.cell.miss {
+  background: color-mix(in oklab, var(--fg-dim) 25%, transparent);
+}
+.cell.hit {
+  background: radial-gradient(circle, color-mix(in oklab, var(--accent-2) 70%, transparent), transparent 70%);
+  box-shadow: 0 0 16px color-mix(in oklab, var(--accent-2) 60%, transparent);
+}
+.cell.sunk {
+  background: radial-gradient(circle, color-mix(in oklab, #ff3550 80%, transparent), transparent 70%);
+  box-shadow: 0 0 22px color-mix(in oklab, #ff3550 65%, transparent);
+}
+.cell.ship {
+  background: linear-gradient(135deg, color-mix(in oklab, var(--accent) 35%, transparent), color-mix(in oklab, var(--accent-3) 45%, transparent));
+  box-shadow: inset 0 0 8px color-mix(in oklab, var(--accent) 35%, transparent);
+}
+.cell.preview-ok {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+.cell.preview-bad {
+  background: color-mix(in oklab, #ff3550 35%, transparent);
+}
+
+/* Scanline glow strip */
+.scan {
+  position: relative;
+  overflow: hidden;
+}
+.scan::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent, color-mix(in oklab, var(--accent) 55%, transparent), transparent);
+  opacity: 0.45;
+  height: 14%;
+  animation: scanMove 4s linear infinite;
+  pointer-events: none;
+  filter: blur(8px);
+}
+@keyframes scanMove {
+  0% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(800%);
+  }
+}
+
+/* Pulse for active timer / buttons */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent-2) 65%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 14px color-mix(in oklab, var(--accent-2) 0%, transparent);
+  }
+}
+.pulse-glow {
+  animation: pulseGlow 1.4s ease-out infinite;
+}
+
+/* Title gradient */
+.title-grad {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 200% 100%;
+  animation: shift 5s ease-in-out infinite;
+}
+@keyframes shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Scrollbar polish */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--accent-3) 35%, transparent);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Neon form inputs */
+.neon-input {
+  width: 100%;
+  background: rgba(4, 6, 16, 0.6);
+  border: 1px solid color-mix(in oklab, var(--accent-3) 30%, transparent);
+  color: var(--fg);
+  border-radius: 0.75rem;
+  padding: 0.75rem 0.875rem 0.75rem 2.5rem;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  transition: border-color 0.18s ease, box-shadow 0.22s ease, background 0.2s ease;
+}
+.neon-input::placeholder {
+  color: color-mix(in oklab, var(--fg-dim) 70%, transparent);
+}
+.neon-input:focus {
+  outline: none;
+  background: rgba(6, 9, 22, 0.72);
+  border-color: color-mix(in oklab, var(--accent) 70%, transparent);
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent),
+    0 0 22px color-mix(in oklab, var(--accent) 35%, transparent),
+    inset 0 0 12px color-mix(in oklab, var(--accent-3) 18%, transparent);
+}
+
+/* Neon-red error */
+.neon-error {
+  color: #ff5577;
+  border: 1px solid rgba(255, 53, 80, 0.45);
+  background: linear-gradient(135deg, rgba(255, 53, 80, 0.10), rgba(255, 53, 80, 0.04));
+  box-shadow:
+    0 0 0 1px rgba(255, 53, 80, 0.35),
+    0 0 20px rgba(255, 53, 80, 0.28),
+    inset 0 0 14px rgba(255, 53, 80, 0.10);
+  text-shadow: 0 0 10px rgba(255, 53, 80, 0.55);
+}
+
+/* Loader spinner */
+.neon-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid color-mix(in oklab, var(--accent) 80%, transparent);
+  border-top-color: transparent;
+  animation: neonSpin 0.7s linear infinite;
+  box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 55%, transparent);
+}
+@keyframes neonSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }

@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BATTLESHIP.NEON — Naval Combat OS
 
-## Getting Started
+A modern, single-page Battleship arena built with **Next.js 14**, **TypeScript**, **Tailwind CSS**, **Framer Motion**, and **Supabase**.
 
-First, run the development server:
+## Run it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The game runs fully offline by default — auth and the leaderboard fall back to local profiles + a seeded board. Drop in Supabase keys to enable cloud auth + a global leaderboard:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# .env.local
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
 
-## Learn More
+Expected Supabase table `leaderboard` with columns: `username (text, primary)`, `city (text)`, `wins (int)`, `accuracy (numeric)`, `rating (int)`, `updated_at (timestamptz)`. Auth uses email magic links via `signInWithOtp`.
 
-To learn more about Next.js, take a look at the following resources:
+## Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **10×10 grid** with classical no-touching ship placement rules
+- **Three AI commanders**:
+  - *Cadet* — random shots
+  - *Officer* — neighbor hunt + line-extend after two hits
+  - *Admiral* — full **probability-density** targeting that re-weights each placement when in search-and-destroy mode
+- **Auto-place** + tap-to-place fleet builder with rotate, drag-to-move, and clear-all
+- **Blitz mode** — 3-minute countdown; the timer pulses red below 30s
+- **AI Coach** — after every match it grades you S/A/B/C/D and gives 3–4 strategy notes (accuracy, hunt efficiency, parity discipline, edge bias)
+- **Leaderboard by city** with local seeds + optional Supabase cloud sync
+- **Game history**, win/loss, accuracy stats — persisted to localStorage
+- **Email auth** via Supabase magic links (graceful local fallback when cloud is off)
+- **Upgrade to Pro** modal with 6 ship skins
+- **Dark / light theme** toggle with persisted preference
+- **Mobile responsive** layout, touch-friendly controls
+- **Smooth animations** with Framer Motion (cell taps, hits, sunk reveals, board entrance, bar charts, leaderboard rows)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project layout
 
-## Deploy on Vercel
+```
+src/
+├── app/
+│   ├── layout.tsx        # Root layout — Theme + Auth providers
+│   ├── page.tsx          # Main page — TopBar, Game, Stats, Leaderboard
+│   └── globals.css       # Neon/glassmorphism design tokens + animations
+├── components/
+│   ├── AuthProvider.tsx  # Supabase OTP auth, falls back to local profile
+│   ├── ThemeProvider.tsx
+│   ├── TopBar.tsx
+│   ├── Board.tsx
+│   ├── ShipPlacement.tsx
+│   ├── GameUI.tsx        # Phase machine: menu → placing → playing → over
+│   ├── CoachPanel.tsx
+│   ├── StatsPanel.tsx
+│   ├── Leaderboard.tsx
+│   └── UpgradeModal.tsx
+└── lib/
+    ├── game/
+    │   ├── types.ts      # Board, Ship, ShipDef, etc.
+    │   ├── board.ts      # placeShip / canPlace / autoPlace / applyAttack
+    │   ├── ai.ts         # AI state + probability density
+    │   └── coach.ts      # Post-game grading + tips
+    ├── storage.ts        # localStorage + Supabase sync
+    └── supabase/client.ts
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Build / lint
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build   # production build, type-check
+npm run lint    # ESLint (incl. React Compiler rules)
+```
