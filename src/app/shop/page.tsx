@@ -362,6 +362,45 @@ function BadgeCard({
     );
   }
   if (!item) return null;
+  if (item.earnedOnly) {
+    return (
+      <motion.div
+        whileHover={{ y: -2 }}
+        className={clsx(
+          "glass rounded-2xl p-3 flex flex-col gap-2 border",
+          active
+            ? "border-accent shadow-[0_0_18px_rgba(0,240,255,0.4)]"
+            : "border-white/10"
+        )}
+      >
+        <div className="h-20 rounded-lg flex items-center justify-center bg-gradient-to-br from-accent-3/20 to-accent-2/20 text-5xl">
+          {item.emoji}
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="font-semibold text-sm">{item.name}</div>
+            <div className="text-xs text-fg-dim">{item.hint ?? "Earned reward"}</div>
+          </div>
+          {active ? (
+            <span className="rounded-lg px-3 py-1.5 text-xs font-semibold border border-accent/50 text-accent">
+              Active
+            </span>
+          ) : owned ? (
+            <button
+              onClick={onActivate}
+              className="rounded-lg px-3 py-1.5 text-xs font-semibold neon-btn"
+            >
+              Equip
+            </button>
+          ) : (
+            <span className="rounded-lg px-3 py-1.5 text-xs font-semibold border border-white/15 text-fg-dim">
+              Locked
+            </span>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
   return (
     <motion.div
       whileHover={{ y: -2 }}

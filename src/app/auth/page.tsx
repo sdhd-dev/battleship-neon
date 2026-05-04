@@ -98,6 +98,10 @@ function AuthPageInner() {
       setError("Callsign and cipher key are required.");
       return;
     }
+    if (!/^[A-Za-z0-9_]+$/.test(username.trim())) {
+      setError("Username can only contain letters, numbers and _");
+      return;
+    }
     if (mode === "signup" && password.length < 6) {
       setError("Cipher key must be at least 6 characters.");
       return;
@@ -296,11 +300,14 @@ function AuthPageInner() {
                       placeholder="captain_nova"
                       className="neon-input"
                       disabled={loading}
-                      pattern="[A-Za-z0-9_-]{3,24}"
+                      pattern="[A-Za-z0-9_]{3,24}"
                       minLength={3}
                       maxLength={24}
                     />
                   </div>
+                  <p className="text-[10px] text-fg-dim/80 pl-1">
+                    Only letters, numbers and _ allowed
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">

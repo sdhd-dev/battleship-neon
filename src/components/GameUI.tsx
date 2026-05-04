@@ -32,8 +32,10 @@ import { supabaseEnabled } from "@/lib/supabase/client";
 import { createRoom, getCurrentPlayerId } from "@/lib/game/multiplayer";
 import { applyWinReward, ApplyRewardResult } from "@/lib/economy";
 import { RewardSummary } from "./RewardSummary";
+import { TrainingMode } from "./TrainingMode";
+import { TipOfTheDay } from "./TipOfTheDay";
 
-type Phase = "menu" | "placing" | "playing" | "over";
+type Phase = "menu" | "placing" | "playing" | "over" | "training";
 type Turn = "player" | "ai";
 
 interface GameUIProps {
@@ -71,7 +73,19 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
   const [aiThinking, setAiThinking] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [now, setNow] = useState(0);
+  const [toast, setToast] = useState<string | null>(null);
   const gameRecorded = useRef(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(id);
+  }, [toast]);
+
+  const handleTrainingExit = useCallback((completed: boolean) => {
+    setPhase("menu");
+    if (completed) setToast("🎓 +25 coins earned!");
+  }, []);
 
   // Tick clock for blitz
   useEffect(() => {
@@ -242,6 +256,21 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
 
   return (
     <div className="relative">
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key="training-toast"
+            initial={{ opacity: 0, y: -16, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -16, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 260, damping: 22 }}
+            className="fixed top-20 left-1/2 -translate-x-1/2 z-50 glass neon-border rounded-2xl px-5 py-3 font-bold flex items-center gap-2"
+            style={{ color: "#fbbf24", textShadow: "0 0 10px #fbbf24" }}
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence mode="wait">
         {phase === "menu" && (
           <motion.div
@@ -252,27 +281,30 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
             className="grid gap-6"
           >
             <Hero />
-            <PlayOnlineCard />
-            <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim text-center">
-              · or play vs AI ·
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
+            <TipOfTheDay />
+            <div className="grid sm:grid-cols-2 gap-4 items-stretch">
+              <TrainingCard onPick={() => setPhase("training")} />
+              <PlayOnlineCard />
               <ModeCard
                 title="Classic"
-                tag="No timer"
+                tag="No timer · vs AI"
                 desc="Hunt at your own pace — no clock, just strategy."
                 gradient="from-accent/30 via-accent-3/30 to-transparent"
                 onPick={(d) => startSetup("classic", d)}
               />
               <ModeCard
                 title="Blitz · 3:00"
-                tag="Pressure cooker"
-                desc="Sink the enemy fleet in three minutes. Miss the timer, lose the war."
+                tag="Pressure cooker · vs AI"
+                desc="Sink in three minutes. Miss the timer, lose the war."
                 gradient="from-accent-2/30 via-accent/30 to-transparent"
                 onPick={(d) => startSetup("blitz", d)}
               />
             </div>
           </motion.div>
+        )}
+
+        {phase === "training" && (
+          <TrainingMode key="training" onExit={handleTrainingExit} />
         )}
 
         {phase === "placing" && (
@@ -402,6 +434,35 @@ function Hero() {
   );
 }
 
+function TrainingCard({ onPick }: { onPick: () => void }) {
+  return (
+    <motion.button
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onPick}
+      className="glass rounded-3xl p-6 relative overflow-hidden text-left group h-full flex"
+    >
+      <div className="absolute inset-0 bg-gradient-to-br from-amber-300/20 via-accent/20 to-transparent pointer-events-none opacity-70" />
+      <div className="relative z-10 flex flex-col flex-1 gap-2">
+        <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
+          New here?
+        </div>
+        <h3 className="text-3xl font-extrabold neon-text flex items-center gap-2">
+          <span className="text-3xl">🎓</span> Training
+        </h3>
+        <p className="text-fg-dim text-sm">
+          A 5-step interactive tutorial — placement, shooting, hunt strategy. Earn the Graduate badge.
+        </p>
+        <div className="mt-auto pt-3">
+          <span className="inline-block rounded-xl px-3 py-2 text-xs font-semibold border border-amber-300/40 bg-amber-300/10 text-amber-200">
+            Reward: 🎓 badge + ⚓ 25
+          </span>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
 function ModeCard({
   title,
   tag,
@@ -416,26 +477,30 @@ function ModeCard({
   onPick: (d: Difficulty) => void;
 }) {
   return (
-    <div className={`glass rounded-3xl p-6 relative overflow-hidden`}>
+    <div className="glass rounded-3xl p-6 relative overflow-hidden h-full flex">
       <div className={`absolute inset-0 bg-gradient-to-br ${gradient} pointer-events-none opacity-60`} />
-      <div className="relative z-10">
+      <div className="relative z-10 flex flex-col flex-1 min-w-0">
         <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">{tag}</div>
         <h3 className="text-3xl font-extrabold neon-text">{title}</h3>
         <p className="text-fg-dim text-sm mt-1">{desc}</p>
-        <div className="grid grid-cols-3 gap-2 mt-4">
+        <div className="grid gap-2 mt-4">
           {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
             <motion.button
               key={d}
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ y: -1, x: 2 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => onPick(d)}
-              className="rounded-xl border border-white/10 hover:border-white/30 p-3 text-left bg-black/20"
+              className="rounded-xl border border-white/10 hover:border-white/30 px-3 py-2.5 text-left bg-black/20 flex items-center gap-3"
             >
-              <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">{d}</div>
-              <div className="font-bold" style={{ color: DIFFICULTY_DESC[d].color }}>
-                {DIFFICULTY_DESC[d].title}
+              <div className="shrink-0 w-[88px]">
+                <div className="text-[9px] uppercase tracking-[0.3em] text-fg-dim leading-tight">{d}</div>
+                <div className="font-bold leading-tight" style={{ color: DIFFICULTY_DESC[d].color }}>
+                  {DIFFICULTY_DESC[d].title}
+                </div>
               </div>
-              <div className="text-[11px] text-fg-dim mt-1 leading-snug">{DIFFICULTY_DESC[d].sub}</div>
+              <div className="text-[11px] text-fg-dim leading-snug flex-1 min-w-0">
+                {DIFFICULTY_DESC[d].sub}
+              </div>
             </motion.button>
           ))}
         </div>
@@ -594,7 +659,16 @@ function PlayOnlineCard() {
   };
 
   return (
-    <div className="glass neon-border rounded-3xl p-5 sm:p-6 relative overflow-hidden">
+    <motion.button
+      whileHover={cloud && !creating ? { y: -2 } : undefined}
+      whileTap={cloud && !creating ? { scale: 0.98 } : undefined}
+      onClick={onPlayOnline}
+      disabled={creating || !cloud}
+      className={clsx(
+        "glass neon-border rounded-3xl p-6 relative overflow-hidden text-left h-full flex",
+        (creating || !cloud) && "opacity-80 cursor-not-allowed"
+      )}
+    >
       <motion.div
         className="absolute -top-16 -right-16 w-48 h-48 rounded-full pointer-events-none"
         style={{
@@ -604,41 +678,43 @@ function PlayOnlineCard() {
         animate={{ scale: [1, 1.2, 1] }}
         transition={{ duration: 6, repeat: Infinity }}
       />
-      <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5">
-        <div className="flex-1 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
-            Multiplayer · Beta
-          </div>
-          <h3 className="text-2xl sm:text-3xl font-extrabold neon-text">
-            🌐 Play Online vs Friend
-          </h3>
-          <p className="text-sm text-fg-dim mt-1 max-w-md">
-            Spin up a private lobby, share the invite link, and trade salvos in
-            real time — with chat.
-          </p>
-          {error && (
-            <p className="text-xs text-red-300 mt-2">{error}</p>
-          )}
-          {!cloud && (
-            <p className="text-[11px] text-fg-dim mt-2">
-              Configure <code>NEXT_PUBLIC_SUPABASE_URL</code> &amp;{" "}
-              <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to enable.
-            </p>
-          )}
+      <div className="relative z-10 flex flex-col flex-1 gap-2 min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
+          Multiplayer · Beta
         </div>
-        <motion.button
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={onPlayOnline}
-          disabled={creating || !cloud}
-          className={clsx(
-            "neon-btn rounded-2xl px-5 py-3 font-bold pulse-glow whitespace-nowrap",
-            (creating || !cloud) && "opacity-60 cursor-not-allowed"
-          )}
-        >
-          {creating ? "Creating room…" : "Create Room"}
-        </motion.button>
+        <h3 className="text-3xl font-extrabold neon-text flex items-center gap-2">
+          <span className="text-3xl">🌐</span> Play Online
+        </h3>
+        <p className="text-fg-dim text-sm">
+          Spin up a private lobby, share the invite link, and trade salvos in real time — with chat.
+        </p>
+        {error && (
+          <p className="text-xs text-red-300">{error}</p>
+        )}
+        {!cloud && (
+          <p className="text-[11px] text-fg-dim">
+            Configure <code>NEXT_PUBLIC_SUPABASE_URL</code> &amp;{" "}
+            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to enable.
+          </p>
+        )}
+        <div className="mt-auto pt-3">
+          <span
+            className={clsx(
+              "inline-block rounded-xl px-3 py-2 text-xs font-semibold border",
+              cloud && !creating
+                ? "border-accent-2/50 bg-accent-2/10 text-accent-2 pulse-glow"
+                : "border-white/15 bg-white/5 text-fg-dim"
+            )}
+            style={
+              cloud && !creating
+                ? { color: "var(--accent-2)", textShadow: "0 0 8px var(--accent-2)" }
+                : undefined
+            }
+          >
+            {creating ? "Creating room…" : cloud ? "Create Room →" : "Unavailable"}
+          </span>
+        </div>
       </div>
-    </div>
+    </motion.button>
   );
 }

@@ -15,6 +15,8 @@ interface BoardProps {
   disabled?: boolean;
   label?: string;
   compact?: boolean;
+  glowCells?: Array<[number, number]>;
+  arrowCells?: Array<[number, number]>;
 }
 
 const COLS = "ABCDEFGHIJ".split("");
@@ -30,6 +32,8 @@ export function Board({
   disabled,
   label,
   compact,
+  glowCells,
+  arrowCells,
 }: BoardProps) {
   const shipMap = new Map<string, Ship>();
   for (const s of board.ships) {
@@ -39,6 +43,15 @@ export function Board({
   const previewSet = new Set<string>();
   if (preview) {
     for (const [r, c] of preview.cells) previewSet.add(cellKey(r, c));
+  }
+
+  const glowSet = new Set<string>();
+  if (glowCells) {
+    for (const [r, c] of glowCells) glowSet.add(cellKey(r, c));
+  }
+  const arrowSet = new Set<string>();
+  if (arrowCells) {
+    for (const [r, c] of arrowCells) arrowSet.add(cellKey(r, c));
   }
 
   const cellSize = compact ? "w-7 h-7 sm:w-8 sm:h-8" : "w-8 h-8 sm:w-10 sm:h-10 md:w-11 md:h-11";
@@ -71,6 +84,8 @@ export function Board({
 
               const showShip = revealShips && ship && shotState !== "sunk" && shotState !== "hit";
               const isHighlighted = highlightShip && ship?.id === highlightShip;
+              const isGlow = glowSet.has(k) && !shotState;
+              const hasArrow = arrowSet.has(k) && !shotState;
 
               const classes = clsx(
                 "cell rounded-md m-[1px]",
@@ -81,6 +96,7 @@ export function Board({
                 showShip && !shotState && "ship",
                 isPreview && (preview?.valid ? "preview-ok" : "preview-bad"),
                 isHighlighted && "ring-2 ring-accent",
+                isGlow && "glow",
                 !disabled && onCellClick && !shotState && "cursor-crosshair"
               );
 
@@ -93,8 +109,10 @@ export function Board({
                   onClick={() => !disabled && onCellClick?.(r, c)}
                   onMouseEnter={() => onCellHover?.(r, c)}
                   onMouseLeave={() => onCellLeave?.()}
+                  style={{ position: "relative" }}
                 >
                   <CellMark state={shotState} />
+                  {hasArrow && <span className="tut-arrow">▼</span>}
                 </motion.div>
               );
             })}

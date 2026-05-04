@@ -36,10 +36,11 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const USERNAME_DOMAIN = "battleship.neon";
-const USERNAME_RE = /^[a-z0-9_-]{3,24}$/i;
+const USERNAME_RE = /^[a-z0-9_]{3,24}$/i;
 
 function toAuthEmail(username: string) {
-  return `${username.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
+  const sanitized = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  return `${sanitized}@${USERNAME_DOMAIN}`;
 }
 
 function fromAuthEmail(email: string | null | undefined): string | null {
@@ -53,7 +54,7 @@ function fromAuthEmail(email: string | null | undefined): string | null {
 function validateUsername(username: string): string | null {
   if (!username) return "Callsign is required.";
   if (!USERNAME_RE.test(username)) {
-    return "Callsign must be 3–24 chars: letters, numbers, dashes or underscores.";
+    return "Username can only contain letters, numbers and _";
   }
   return null;
 }

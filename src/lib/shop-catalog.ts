@@ -26,6 +26,8 @@ export interface BadgeItem {
   name: string;
   price: number;
   emoji: string;
+  earnedOnly?: boolean;
+  hint?: string;
 }
 
 export type ShopItem = SkinItem | ThemeItem | BadgeItem;
@@ -90,7 +92,18 @@ export const BOARD_THEMES: ThemeItem[] = [
   },
 ];
 
+export const GRADUATE_BADGE_ID = "graduate";
+
 export const PROFILE_BADGES: BadgeItem[] = [
+  {
+    id: GRADUATE_BADGE_ID,
+    kind: "badge",
+    name: "Graduate",
+    price: 0,
+    emoji: "🎓",
+    earnedOnly: true,
+    hint: "Complete Training Mode",
+  },
   { id: "champ", kind: "badge", name: "Champion", price: 75, emoji: "🥇" },
   { id: "veteran", kind: "badge", name: "Veteran", price: 75, emoji: "⚓" },
   { id: "streak", kind: "badge", name: "Hot Streak", price: 75, emoji: "🔥" },
