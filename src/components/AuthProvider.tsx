@@ -16,7 +16,7 @@ import {
 } from "@/lib/referrals";
 import { CoinAnimation } from "./CoinAnimation";
 import { LevelUpOverlay } from "./LevelUpOverlay";
-import { getThemeVars } from "@/lib/shop-catalog";
+import { getSkinGradient, getThemeVars } from "@/lib/shop-catalog";
 
 type AuthResultCode = "email_not_confirmed";
 type AuthResult = { ok: boolean; message: string; code?: AuthResultCode };
@@ -91,6 +91,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       else root.style.removeProperty(k);
     }
   }, [profile.activeBoardTheme]);
+
+  // Apply the active ship skin gradient as a CSS variable consumed by
+  // `.cell.ship` in globals.css. Cleared on default so the theme-driven
+  // fallback gradient takes over.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const gradient = getSkinGradient(profile.shipSkin);
+    const root = document.documentElement;
+    if (gradient) root.style.setProperty("--ship-skin-gradient", gradient);
+    else root.style.removeProperty("--ship-skin-gradient");
+  }, [profile.shipSkin]);
 
   // Supabase's implicit flow can land users on any page with
   // `#error_code=otp_expired&...` — fragments are client-only, so the

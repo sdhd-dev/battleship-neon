@@ -7,8 +7,6 @@ import clsx from "clsx";
 import { TopBar } from "@/components/TopBar";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useAuth } from "@/components/AuthProvider";
-import { spendCoins } from "@/lib/economy";
-import { saveProfile } from "@/lib/storage";
 import {
   BOARD_THEMES,
   PROFILE_BADGES,
@@ -33,20 +31,16 @@ export default function ShopPage() {
 
   function purchase(item: ShopItem) {
     setError(null);
+    if (owned.has(item.id)) return;
     if (item.price > coins) {
       setError(`Not enough coins. Need ⚓ ${item.price - coins} more.`);
       return;
     }
-    const { ok, profile: afterSpend } = spendCoins(item.price);
-    if (!ok) {
-      setError("Purchase failed.");
-      return;
-    }
-    const next = {
-      ...afterSpend,
-      ownedCosmetics: [...new Set([...(afterSpend.ownedCosmetics ?? []), item.id])],
-    };
-    saveProfile(next);
+    setProfile({
+      ...profile,
+      coins: coins - item.price,
+      ownedCosmetics: [...new Set([...(profile.ownedCosmetics ?? []), item.id])],
+    });
   }
 
   function setActiveSkin(id: string) {
@@ -65,12 +59,7 @@ export default function ShopPage() {
       setError(`Not enough coins. Need ⚓ ${PRO_PRICE - coins} more.`);
       return;
     }
-    const { ok } = spendCoins(PRO_PRICE);
-    if (!ok) {
-      setError("Purchase failed.");
-      return;
-    }
-    setProfile({ ...profile, coins: (profile.coins ?? 0) - PRO_PRICE, pro: true });
+    setProfile({ ...profile, coins: coins - PRO_PRICE, pro: true });
   }
 
   return (

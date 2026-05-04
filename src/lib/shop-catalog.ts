@@ -122,3 +122,9 @@ export function getThemeVars(id?: string): Record<string, string> {
   const t = BOARD_THEMES.find((b) => b.id === id) ?? BOARD_THEMES[0];
   return t.vars;
 }
+
+export function getSkinGradient(id?: string): string | null {
+  if (!id || id === SKIN_DEFAULT_ID) return null;
+  const s = SHIP_SKINS.find((it) => it.id === id);
+  return s?.gradient ?? null;
+}

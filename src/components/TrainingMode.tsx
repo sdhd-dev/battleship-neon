@@ -19,7 +19,7 @@ const TOTAL_STEPS = 5;
 const REWARD_COINS = 25;
 
 interface TrainingModeProps {
-  onExit: (completed: boolean) => void;
+  onExit: (completed: boolean, rewarded: boolean) => void;
 }
 
 type Step = 1 | 2 | 3 | 4 | 5;
@@ -157,23 +157,37 @@ export function TrainingMode({ onExit }: TrainingModeProps) {
   };
 
   const [completed, setCompleted] = useState(false);
+  const [rewarded, setRewarded] = useState(false);
 
   useEffect(() => {
     if (step !== 5 || completed) return;
-    grantCoins(REWARD_COINS, "Training Mode");
     const profile = loadProfile();
-    const owned = new Set(profile.ownedCosmetics ?? []);
-    owned.add(GRADUATE_BADGE_ID);
-    const next = {
-      ...profile,
-      ownedCosmetics: Array.from(owned),
-      activeBadge: profile.activeBadge ?? GRADUATE_BADGE_ID,
-    };
-    saveProfile(next);
-    void syncCloudProfile(next);
+    const alreadyGraduated = (profile.ownedCosmetics ?? []).includes(
+      GRADUATE_BADGE_ID
+    );
+    if (!alreadyGraduated) {
+      grantCoins(REWARD_COINS, "Training Mode");
+      const owned = new Set(profile.ownedCosmetics ?? []);
+      owned.add(GRADUATE_BADGE_ID);
+      const next = {
+        ...profile,
+        ownedCosmetics: Array.from(owned),
+        activeBadge: profile.activeBadge ?? GRADUATE_BADGE_ID,
+      };
+      saveProfile(next);
+      void syncCloudProfile(next);
+      setRewarded(true);
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCompleted(true);
   }, [step, completed]);
+
+  // Auto-close the tutorial after the reward screen is shown.
+  useEffect(() => {
+    if (step !== 5) return;
+    const id = setTimeout(() => onExit(true, rewarded), 3500);
+    return () => clearTimeout(id);
+  }, [step, onExit, rewarded]);
 
   return (
     <motion.div
@@ -184,7 +198,7 @@ export function TrainingMode({ onExit }: TrainingModeProps) {
       className="grid gap-5 relative"
     >
       <button
-        onClick={() => onExit(false)}
+        onClick={() => onExit(false, false)}
         className="fixed top-20 right-4 sm:right-6 z-50 rounded-xl px-3 py-2 border border-white/20 bg-black/60 backdrop-blur text-sm hover:bg-white/10 hover:border-white/40 shadow-lg"
       >
         Skip ✕
@@ -229,7 +243,8 @@ export function TrainingMode({ onExit }: TrainingModeProps) {
         {step === 5 && (
           <Step5
             key="s5"
-            onPlayReal={() => onExit(true)}
+            rewarded={rewarded}
+            onPlayReal={() => onExit(true, rewarded)}
           />
         )}
       </AnimatePresence>
@@ -457,7 +472,13 @@ function Step4({
 }
 
 // ── Step 5 — Victory / reward ──────────────────────────────────
-function Step5({ onPlayReal }: { onPlayReal: () => void }) {
+function Step5({
+  rewarded,
+  onPlayReal,
+}: {
+  rewarded: boolean;
+  onPlayReal: () => void;
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -477,19 +498,22 @@ function Step5({ onPlayReal }: { onPlayReal: () => void }) {
       />
       <div className="relative z-10 grid gap-3">
         <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
-          Mission complete
+          {rewarded ? "Mission complete" : "Refresher complete"}
         </div>
         <h2 className="text-3xl sm:text-5xl font-extrabold title-grad">
           🏆 You&apos;re cleared for the open sea.
         </h2>
         <p className="text-sm text-fg-dim max-w-xl">
-          You know the goal, the placement rules, the shot loop, and the hunt.
-          Two badges of progress are now on your record:
+          {rewarded
+            ? "You know the goal, the placement rules, the shot loop, and the hunt. Two badges of progress are now on your record:"
+            : "You've already graduated, Captain — rewards were claimed on your first run. Hit the seas when you're ready."}
         </p>
-        <div className="flex flex-wrap gap-3 mt-1">
-          <RewardChip emoji="🎓" label="Graduate" sub="Profile badge" />
-          <RewardChip emoji="⚓" label={`+${REWARD_COINS}`} sub="Naval Coins" />
-        </div>
+        {rewarded && (
+          <div className="flex flex-wrap gap-3 mt-1">
+            <RewardChip emoji="🎓" label="Graduate" sub="Profile badge" />
+            <RewardChip emoji="⚓" label={`+${REWARD_COINS}`} sub="Naval Coins" />
+          </div>
+        )}
         <div className="flex flex-wrap gap-3 justify-end mt-3">
           <button
             onClick={onPlayReal}

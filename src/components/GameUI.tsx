@@ -82,9 +82,9 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
     return () => clearTimeout(id);
   }, [toast]);
 
-  const handleTrainingExit = useCallback((completed: boolean) => {
+  const handleTrainingExit = useCallback((completed: boolean, rewarded: boolean) => {
     setPhase("menu");
-    if (completed) setToast("🎓 +25 coins earned!");
+    if (completed && rewarded) setToast("🎓 +25 coins earned!");
   }, []);
 
   // Tick clock for blitz
