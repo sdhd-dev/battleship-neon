@@ -78,20 +78,20 @@ export function TopBar({ onUpgrade }: TopBarProps) {
   };
 
   return (
-    <header className="relative z-50 flex items-center justify-between p-4 sm:p-6 gap-3">
-      <div className="flex items-center gap-3 min-w-0">
-        <Link href="/" className="flex items-center gap-3 shrink-0">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent via-accent-3 to-accent-2 shadow-[0_0_18px_rgba(0,240,255,0.5)]" />
+    <header className="relative z-50 flex items-center justify-between p-4 sm:p-6 gap-2 sm:gap-3">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="relative shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-accent via-accent-3 to-accent-2 shadow-[0_0_18px_rgba(0,240,255,0.5)]" />
             <motion.div
               className="absolute inset-0 rounded-xl border border-accent/60"
               animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
               transition={{ duration: 2.4, repeat: Infinity }}
             />
           </div>
-          <div className="leading-tight">
-            <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">Naval Combat OS</div>
-            <h1 className="text-xl sm:text-2xl font-extrabold title-grad">BATTLESHIP.NEON</h1>
+          <div className="leading-tight min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim truncate">Naval Combat OS</div>
+            <h1 className="text-lg sm:text-2xl font-extrabold title-grad whitespace-nowrap">BATTLESHIP.NEON</h1>
           </div>
         </Link>
 
@@ -132,8 +132,8 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        {/* Coin balance */}
+      <div className="flex items-center gap-2 shrink-0">
+        {/* Coin balance — desktop only; mobile users see coins in profile dropdown */}
         <Link
           href="/shop"
           className="hidden sm:inline-flex items-center gap-2 rounded-xl px-3 py-2 border border-amber-300/40 bg-amber-300/10 hover:bg-amber-300/20 transition-colors"
@@ -148,15 +148,6 @@ export function TopBar({ onUpgrade }: TopBarProps) {
             {coins.toLocaleString()}
           </span>
         </Link>
-        <Link
-          href="/shop"
-          className="inline-flex sm:hidden items-center gap-1 rounded-xl px-2 py-2 border border-amber-300/40 bg-amber-300/10 text-sm"
-        >
-          <span>⚓</span>
-          <span suppressHydrationWarning className="tabular-nums" style={{ color: "#fbbf24" }}>
-            {coins}
-          </span>
-        </Link>
 
         <button
           onClick={onUpgrade}
@@ -167,7 +158,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         </button>
         <button
           onClick={toggle}
-          className="rounded-xl px-3 py-2 border border-white/15 hover:bg-white/5 text-sm"
+          className="rounded-xl px-2.5 py-2 sm:px-3 border border-white/15 hover:bg-white/5 text-sm"
           aria-label="Toggle theme"
         >
           {theme === "dark" ? "☾" : "☀"}
@@ -176,7 +167,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
           <button
             onClick={() => setAuthOpen((o) => !o)}
             suppressHydrationWarning
-            className="rounded-xl px-3 py-2 border border-white/15 hover:bg-white/5 text-sm flex items-center gap-2"
+            className="rounded-xl px-2 py-2 sm:px-3 border border-white/15 hover:bg-white/5 text-sm flex items-center gap-2"
           >
             <span
               suppressHydrationWarning
