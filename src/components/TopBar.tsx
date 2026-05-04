@@ -96,10 +96,16 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         </Link>
 
         {/* Level + XP bar */}
-        <div className="hidden md:flex items-center ml-3 px-3 py-1.5 rounded-xl border border-white/10 bg-black/30 min-w-[200px] gap-3">
+        <div
+          suppressHydrationWarning
+          className="hidden md:flex items-center ml-3 px-3 py-1.5 rounded-xl border border-white/10 bg-black/30 min-w-[200px] gap-3"
+        >
           <div className="leading-tight">
-            <div className="text-[9px] uppercase tracking-[0.3em] text-fg-dim">Lv {level}</div>
+            <div suppressHydrationWarning className="text-[9px] uppercase tracking-[0.3em] text-fg-dim">
+              Lv {level}
+            </div>
             <div
+              suppressHydrationWarning
               className="text-xs font-bold leading-tight"
               style={{ color: "var(--accent)", textShadow: "0 0 8px var(--accent)" }}
             >
@@ -119,7 +125,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
                 transition={{ duration: 0.6, ease: "easeOut" }}
               />
             </div>
-            <div className="text-[9px] text-fg-dim mt-1 tabular-nums">
+            <div suppressHydrationWarning className="text-[9px] text-fg-dim mt-1 tabular-nums">
               {level >= 100 ? "MAX" : `${xp - xpForLevel(level)} / ${xpForLevel(level + 1) - xpForLevel(level)} · ${toNext} to next`}
             </div>
           </div>
@@ -135,6 +141,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         >
           <span className="text-lg leading-none">⚓</span>
           <span
+            suppressHydrationWarning
             className="font-bold tabular-nums text-sm"
             style={{ color: "#fbbf24", textShadow: "0 0 10px #fbbf24" }}
           >
@@ -146,13 +153,14 @@ export function TopBar({ onUpgrade }: TopBarProps) {
           className="inline-flex sm:hidden items-center gap-1 rounded-xl px-2 py-2 border border-amber-300/40 bg-amber-300/10 text-sm"
         >
           <span>⚓</span>
-          <span className="tabular-nums" style={{ color: "#fbbf24" }}>
+          <span suppressHydrationWarning className="tabular-nums" style={{ color: "#fbbf24" }}>
             {coins}
           </span>
         </Link>
 
         <button
           onClick={onUpgrade}
+          suppressHydrationWarning
           className="hidden sm:inline-flex neon-btn rounded-xl px-3 py-2 text-sm font-semibold"
         >
           {profile.pro ? "✦ Pro" : "Upgrade to Pro"}
@@ -167,12 +175,18 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         <div className="relative" ref={authRef}>
           <button
             onClick={() => setAuthOpen((o) => !o)}
+            suppressHydrationWarning
             className="rounded-xl px-3 py-2 border border-white/15 hover:bg-white/5 text-sm flex items-center gap-2"
           >
-            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-accent-3 to-accent-2 grid place-items-center text-xs font-bold">
+            <span
+              suppressHydrationWarning
+              className="w-6 h-6 rounded-full bg-gradient-to-br from-accent-3 to-accent-2 grid place-items-center text-xs font-bold"
+            >
               {(profile.username[0] ?? "C").toUpperCase()}
             </span>
-            <span className="hidden sm:inline">{signedIn ? profile.username : "Sign in"}</span>
+            <span suppressHydrationWarning className="hidden sm:inline">
+              {signedIn ? profile.username : "Sign in"}
+            </span>
           </button>
           {authOpen && (
             <motion.div

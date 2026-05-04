@@ -9,6 +9,7 @@ import {
   fetchWeeklyLeaderboard,
   loadLocalLeaderboard,
 } from "@/lib/storage";
+import { fetchViralCreators } from "@/lib/social";
 import { useAuth } from "./AuthProvider";
 
 type Scope = "all" | "weekly";
@@ -20,6 +21,7 @@ export function Leaderboard() {
   const [weeklyEntries, setWeeklyEntries] = useState<LeaderboardEntry[]>([]);
   const [city, setCity] = useState<string>("ALL");
   const [source, setSource] = useState<"local" | "cloud">("local");
+  const [viralCreators, setViralCreators] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -35,6 +37,7 @@ export function Leaderboard() {
       fetchWeeklyLeaderboard().then((weekly) => {
         if (weekly) setWeeklyEntries(weekly);
       });
+      fetchViralCreators().then(setViralCreators).catch(() => {});
     }
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [cloudEnabled]);
@@ -100,6 +103,7 @@ export function Leaderboard() {
             {filtered.map((e, i) => {
               const isYou = e.username.toLowerCase() === profile.username.toLowerCase();
               const goldTop3 = scope === "weekly" && i < 3;
+              const isViral = viralCreators.has(e.username.toLowerCase());
               return (
                 <motion.tr
                   key={e.username + i}
@@ -113,7 +117,7 @@ export function Leaderboard() {
                   )}
                 >
                   <td className="py-2 pr-2 font-mono text-fg-dim tabular-nums">{i + 1}</td>
-                  <td className="py-2 pr-2 font-semibold truncate max-w-[160px]">
+                  <td className="py-2 pr-2 font-semibold truncate max-w-[180px]">
                     {i < 3 && <span className="mr-1">{["🥇", "🥈", "🥉"][i]}</span>}
                     {goldTop3 && (
                       <span
@@ -125,6 +129,19 @@ export function Leaderboard() {
                         }}
                       >
                         TOP 3
+                      </span>
+                    )}
+                    {isViral && (
+                      <span
+                        title="Viral Creator — paid creator program"
+                        className="mr-1 inline-block rounded px-1 text-[9px] font-extrabold tracking-wider align-middle"
+                        style={{
+                          background: "linear-gradient(135deg,#ff7a00,#ff2bd6)",
+                          color: "#fff",
+                          boxShadow: "0 0 10px #ff2bd6",
+                        }}
+                      >
+                        🔥 VIRAL
                       </span>
                     )}
                     {e.username}

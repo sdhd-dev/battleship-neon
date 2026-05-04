@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import clsx from "clsx";
 import { GameRecord, PlayerStats } from "@/lib/game/types";
 
 interface StatsPanelProps {
@@ -43,49 +44,65 @@ export function StatsPanel({ stats, history, onDeleteEntry, onClearAll }: StatsP
             )}
           </div>
         </div>
-        <div className="max-h-[320px] overflow-y-auto pr-1">
+        <div className="max-h-[360px] overflow-y-auto pr-1 -mr-1">
           {history.length === 0 ? (
             <div className="text-fg-dim text-sm text-center py-8">No games yet — start a match.</div>
           ) : (
-            <ul className="divide-y divide-white/5">
-              {history.map((g, i) => (
-                <motion.li
-                  key={g.id}
-                  initial={{ opacity: 0, x: -4 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: Math.min(i * 0.02, 0.3) }}
-                  className="py-2 grid grid-cols-[auto_1fr_auto] items-center gap-3 text-sm"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className={
-                        g.result === "win"
-                          ? "text-accent font-bold w-10"
-                          : "text-accent-2/80 font-bold w-10"
-                      }
-                    >
-                      {g.result === "win" ? "WIN" : "LOSS"}
-                    </span>
-                    <span className="text-fg-dim text-[10px] uppercase tracking-wider w-14">{g.difficulty}</span>
-                    <span className="text-fg-dim text-[10px] uppercase tracking-wider w-14">{g.mode}</span>
-                  </div>
-                  <div className="text-fg-dim text-xs flex gap-3 justify-end tabular-nums whitespace-nowrap">
-                    <span className="w-12 text-right">
-                      {Math.round((g.shotsHit / Math.max(1, g.shotsFired)) * 100)}%
-                    </span>
-                    <span className="w-10 text-right">{Math.round(g.durationMs / 1000)}s</span>
-                    <span>{new Date(g.date).toLocaleDateString()}</span>
-                  </div>
-                  <button
-                    onClick={() => onDeleteEntry(g.id)}
-                    aria-label="Delete game"
-                    title="Delete this game"
-                    className="text-fg-dim hover:text-accent-2 text-lg leading-none px-1"
+            <ul className="grid gap-1.5">
+              {history.map((g, i) => {
+                const accuracy = Math.round((g.shotsHit / Math.max(1, g.shotsFired)) * 100);
+                const seconds = Math.round(g.durationMs / 1000);
+                const isWin = g.result === "win";
+                return (
+                  <motion.li
+                    key={g.id}
+                    initial={{ opacity: 0, x: -4 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: Math.min(i * 0.02, 0.3) }}
+                    className={clsx(
+                      "rounded-xl border px-3 py-2.5 flex items-center gap-3 text-sm transition-colors",
+                      isWin
+                        ? "border-accent/25 bg-accent/[0.04] hover:bg-accent/[0.08]"
+                        : "border-accent-2/25 bg-accent-2/[0.04] hover:bg-accent-2/[0.08]"
+                    )}
                   >
-                    ×
-                  </button>
-                </motion.li>
-              ))}
+                    <div
+                      className={clsx(
+                        "shrink-0 w-12 text-center text-[11px] font-extrabold tracking-wider rounded-md py-1.5",
+                        isWin
+                          ? "bg-accent/20 text-accent"
+                          : "bg-accent-2/20 text-accent-2"
+                      )}
+                    >
+                      {isWin ? "WIN" : "LOSS"}
+                    </div>
+                    <div className="min-w-0 flex-1 grid gap-0.5">
+                      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-fg-dim">
+                        <span className="font-semibold">{g.difficulty}</span>
+                        <span>·</span>
+                        <span>{g.mode}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-fg-dim tabular-nums">
+                        <span title="Accuracy" className="font-semibold text-fg">
+                          {accuracy}%
+                        </span>
+                        <span>·</span>
+                        <span>{seconds}s</span>
+                        <span>·</span>
+                        <span>{new Date(g.date).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onDeleteEntry(g.id)}
+                      aria-label="Delete game"
+                      title="Delete this game"
+                      className="shrink-0 text-fg-dim hover:text-accent-2 text-xl leading-none w-7 h-7 rounded-md hover:bg-white/5 grid place-items-center"
+                    >
+                      ×
+                    </button>
+                  </motion.li>
+                );
+              })}
             </ul>
           )}
         </div>

@@ -100,6 +100,7 @@ export function MultiplayerGame({
   const myShipsRef = useRef<Ship[]>([]);
   const myBoardShotsRef = useRef<Map<string, CellState>>(new Map());
   const winnerRef = useRef<Side | null>(null);
+  const gameRecorded = useRef(false);
 
   useEffect(() => {
     myShipsRef.current = myShips;
@@ -154,6 +155,8 @@ export function MultiplayerGame({
   );
 
   const awardPvpWin = useCallback(async () => {
+    if (gameRecorded.current) return;
+    gameRecorded.current = true;
     const myShotsFired = enemyShots.size;
     const myShotsHit = Array.from(enemyShots.values()).filter(
       (s) => s === "hit" || s === "sunk"

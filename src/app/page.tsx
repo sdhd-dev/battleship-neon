@@ -7,6 +7,7 @@ import { Leaderboard } from "@/components/Leaderboard";
 import { StatsPanel } from "@/components/StatsPanel";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { TournamentBanner } from "@/components/TournamentBanner";
+import { SocialPanel } from "@/components/SocialPanel";
 import { GameRecord, PlayerStats } from "@/lib/game/types";
 import {
   clearHistory,
@@ -56,6 +57,7 @@ export default function Home() {
             onClearAll={handleClearAll}
           />
           <Leaderboard />
+          <SocialPanel />
           <button
             onClick={() => setUpgradeOpen(true)}
             className="neon-btn rounded-2xl px-4 py-3 font-semibold pulse-glow"

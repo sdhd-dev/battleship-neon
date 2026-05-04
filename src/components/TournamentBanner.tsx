@@ -41,6 +41,7 @@ export function TournamentBanner() {
           Resets Monday 00:00 UTC
         </div>
         <div
+          suppressHydrationWarning
           className="font-mono font-extrabold text-lg sm:text-xl tabular-nums"
           style={{
             color: "#fbbf24",

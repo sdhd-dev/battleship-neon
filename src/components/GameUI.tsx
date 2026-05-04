@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
@@ -71,6 +71,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
   const [aiThinking, setAiThinking] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
   const [now, setNow] = useState(0);
+  const gameRecorded = useRef(false);
 
   // Tick clock for blitz
   useEffect(() => {
@@ -99,6 +100,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
     setShotsFired(0);
     setShotsHit(0);
     setReport(null);
+    gameRecorded.current = false;
     setStatusMsg("Battle commenced. Take your shot.");
     const t = Date.now();
     setStartedAt(t);
@@ -108,6 +110,8 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
 
   const finishGame = useCallback(
     (winningSide: "player" | "ai", message: string) => {
+      if (gameRecorded.current) return;
+      gameRecorded.current = true;
       setWinner(winningSide);
       setStatusMsg(message);
       const durationMs = Date.now() - startedAt;
