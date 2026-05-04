@@ -20,9 +20,18 @@ import { Board } from "./Board";
 import { ShipPlacement } from "./ShipPlacement";
 import { CoachPanel } from "./CoachPanel";
 import { useAuth } from "./AuthProvider";
-import { recordGame, recordLocalLeaderboard, syncCloudLeaderboard, loadStats } from "@/lib/storage";
+import {
+  recordGame,
+  recordLocalLeaderboard,
+  recordWeeklyGame,
+  syncCloudLeaderboard,
+  syncCloudWeeklyLeaderboard,
+  loadStats,
+} from "@/lib/storage";
 import { supabaseEnabled } from "@/lib/supabase/client";
 import { createRoom, getCurrentPlayerId } from "@/lib/game/multiplayer";
+import { applyWinReward, ApplyRewardResult } from "@/lib/economy";
+import { RewardSummary } from "./RewardSummary";
 
 type Phase = "menu" | "placing" | "playing" | "over";
 type Turn = "player" | "ai";
@@ -57,6 +66,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
   const [shotsFired, setShotsFired] = useState(0);
   const [shotsHit, setShotsHit] = useState(0);
   const [report, setReport] = useState<CoachReport | null>(null);
+  const [rewardResult, setRewardResult] = useState<ApplyRewardResult | null>(null);
   const [statusMsg, setStatusMsg] = useState<string>("Standing by.");
   const [aiThinking, setAiThinking] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
@@ -114,6 +124,22 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
       const { stats } = recordGame(loadStats(), record);
       recordLocalLeaderboard(profile, stats);
       syncCloudLeaderboard(profile, stats).catch(() => {});
+      const weekly = recordWeeklyGame(record);
+      syncCloudWeeklyLeaderboard(profile, weekly).catch(() => {});
+
+      if (winningSide === "player") {
+        const perfect = shotsFired > 0 && shotsHit === shotsFired;
+        const result = applyWinReward({
+          difficulty,
+          mode,
+          perfect,
+          isPvp: false,
+        });
+        setRewardResult(result);
+      } else {
+        setRewardResult(null);
+      }
+
       onStatsUpdated();
 
       const enemyBoardForAnalysis: BoardData = {
@@ -204,6 +230,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
   const reset = () => {
     setPhase("menu");
     setReport(null);
+    setRewardResult(null);
     setPlayerShips([]);
     setPlayerBoard(emptyBoard());
     setAiBoard(emptyBoard());
@@ -317,6 +344,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
             exit={{ opacity: 0, y: -8 }}
             className="grid gap-5"
           >
+            {rewardResult && <RewardSummary result={rewardResult} />}
             <CoachPanel report={report} />
             <div className="grid xl:grid-cols-2 gap-6">
               <div className="flex flex-col gap-3">

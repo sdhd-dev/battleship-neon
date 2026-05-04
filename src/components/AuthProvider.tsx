@@ -2,7 +2,21 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { getSupabase, supabaseEnabled } from "@/lib/supabase/client";
-import { LocalProfile, loadProfile, saveProfile } from "@/lib/storage";
+import {
+  LocalProfile,
+  PROFILE_CHANGE_EVENT,
+  loadProfile,
+  pullCloudProfile,
+  saveProfile,
+  syncCloudProfile,
+} from "@/lib/storage";
+import {
+  claimPendingReferralRewards,
+  processReferralOnSignup,
+} from "@/lib/referrals";
+import { CoinAnimation } from "./CoinAnimation";
+import { LevelUpOverlay } from "./LevelUpOverlay";
+import { getThemeVars } from "@/lib/shop-catalog";
 
 type AuthResultCode = "email_not_confirmed";
 type AuthResult = { ok: boolean; message: string; code?: AuthResultCode };
@@ -45,12 +59,7 @@ function validateUsername(username: string): string | null {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [profile, setProfileState] = useState<LocalProfile>({
-    username: "Captain",
-    city: "Unknown",
-    pro: false,
-    shipSkin: "default",
-  });
+  const [profile, setProfileState] = useState<LocalProfile>(() => loadProfile());
   const [username, setUsername] = useState<string | null>(null);
   const cloudEnabled = supabaseEnabled();
 
@@ -58,6 +67,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setProfileState(loadProfile());
   }, []);
+
+  // Listen for profile changes pushed by economy/referral flows so the UI
+  // stays in sync without manual prop drilling.
+  useEffect(() => {
+    const handler = () => setProfileState(loadProfile());
+    window.addEventListener(PROFILE_CHANGE_EVENT, handler);
+    return () => window.removeEventListener(PROFILE_CHANGE_EVENT, handler);
+  }, []);
+
+  // Apply the active board theme by mutating CSS vars on :root. Cleared
+  // (not just reverted) when switching back to default so the base theme
+  // stylesheet wins again.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const vars = getThemeVars(profile.activeBoardTheme);
+    const root = document.documentElement;
+    const keys = ["--accent", "--accent-2", "--accent-3"];
+    for (const k of keys) {
+      const v = vars[k];
+      if (v) root.style.setProperty(k, v);
+      else root.style.removeProperty(k);
+    }
+  }, [profile.activeBoardTheme]);
 
   // Supabase's implicit flow can land users on any page with
   // `#error_code=otp_expired&...` — fragments are client-only, so the
@@ -75,9 +107,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!cloudEnabled) return;
     const sb = getSupabase();
     if (!sb) return;
-    sb.auth.getUser().then(({ data }) => setUsername(fromAuthEmail(data.user?.email)));
+    sb.auth.getUser().then(({ data }) => {
+      const name = fromAuthEmail(data.user?.email);
+      setUsername(name);
+      if (name) void hydrateFromCloud(name);
+    });
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
-      setUsername(fromAuthEmail(session?.user?.email));
+      const name = fromAuthEmail(session?.user?.email);
+      setUsername(name);
+      if (name) void hydrateFromCloud(name);
     });
     return () => {
       sub.subscription.unsubscribe();
@@ -87,7 +125,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setProfile = (p: LocalProfile) => {
     setProfileState(p);
     saveProfile(p);
+    void syncCloudProfile(p);
   };
+
+  // Pull cloud profile snapshot and merge it over local state. Cloud is
+  // authoritative for economy fields when signed in — prevents a fresh
+  // device from zeroing out coins/xp.
+  async function hydrateFromCloud(name: string) {
+    const remote = await pullCloudProfile();
+    if (!remote) return;
+    const local = loadProfile();
+    // Cloud wins for economy & cosmetic ownership; local wins for username
+    // (the user might be mid-edit).
+    const merged: LocalProfile = {
+      ...local,
+      ...remote,
+      username: local.username || remote.username || name,
+      isGuest: false,
+    };
+    saveProfile(merged);
+    void claimPendingReferralRewards(name);
+  }
 
   async function upsertCloudProfile(name: string) {
     const sb = getSupabase();
@@ -95,8 +153,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: userData } = await sb.auth.getUser();
     const userId = userData.user?.id;
     if (!userId) return;
-    // Best-effort — skipped silently if the `profiles` table is missing or
-    // RLS rejects. Local profile remains authoritative for UI.
     await sb
       .from("profiles")
       .upsert({ id: userId, username: name }, { onConflict: "id" });
@@ -137,6 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile({ ...profile, username: name, isGuest: false });
     setUsername(name);
     void upsertCloudProfile(name);
+    void hydrateFromCloud(name);
     return { ok: true, message: "Signed in." };
   };
 
@@ -149,6 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const next = { ...profile, username: name, isGuest: false };
       setProfile(next);
       setUsername(name);
+      void processReferralOnSignup(name);
       return { ok: true, message: "Account created locally (cloud disabled)." };
     }
     const sb = getSupabase();
@@ -165,9 +223,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: error.message };
     }
 
-    // Email confirmation may still be on at the project level. Try the
-    // synthetic-email signin immediately — if Supabase has auto-confirmed
-    // (or confirmations are off), this hands us a session straight away.
     if (!data.session) {
       const { error: signInErr } = await sb.auth.signInWithPassword({ email, password });
       if (signInErr) {
@@ -185,6 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile({ ...profile, username: name, isGuest: false });
     setUsername(name);
     void upsertCloudProfile(name);
+    void processReferralOnSignup(name);
     return { ok: true, message: "Account created." };
   };
 
@@ -227,7 +283,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [profile, username, isGuest, cloudEnabled]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <CoinAnimation />
+      <LevelUpOverlay />
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

@@ -30,6 +30,23 @@ import {
   sendMessage,
   setRoomStatus,
 } from "@/lib/game/multiplayer";
+import {
+  loadProfile,
+  loadStats,
+  recordGame,
+  recordLocalLeaderboard,
+  recordWeeklyGame,
+  syncCloudLeaderboard,
+  syncCloudWeeklyLeaderboard,
+} from "@/lib/storage";
+import {
+  ApplyRewardResult,
+  applyWinReward,
+  pvpRewardEligible,
+  recordPvpPayout,
+} from "@/lib/economy";
+import { GameRecord } from "@/lib/game/types";
+import { RewardSummary } from "./RewardSummary";
 
 type Side = "p1" | "p2";
 type Stage = "placing" | "playing" | "over";
@@ -70,6 +87,10 @@ export function MultiplayerGame({
 
   const [opponentOnline, setOpponentOnline] = useState(false);
   const opponentEverOnlineRef = useRef(false);
+
+  const [rewardResult, setRewardResult] = useState<ApplyRewardResult | null>(null);
+  const [rewardSkippedReason, setRewardSkippedReason] = useState<string | null>(null);
+  const matchStartedAtRef = useRef<number>(0);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reactions, setReactions] = useState<FloatingReaction[]>([]);
@@ -132,6 +153,48 @@ export function MultiplayerGame({
     []
   );
 
+  const awardPvpWin = useCallback(async () => {
+    const myShotsFired = enemyShots.size;
+    const myShotsHit = Array.from(enemyShots.values()).filter(
+      (s) => s === "hit" || s === "sunk"
+    ).length;
+    const perfect = myShotsFired > 0 && myShotsHit === myShotsFired;
+    const startedAt = matchStartedAtRef.current || Date.now();
+    const record: GameRecord = {
+      id: `mp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      date: Date.now(),
+      result: "win",
+      difficulty: "medium",
+      mode: "classic",
+      shotsFired: myShotsFired,
+      shotsHit: myShotsHit,
+      durationMs: Date.now() - startedAt,
+    };
+    const profile = loadProfile();
+    const { stats } = recordGame(loadStats(), record);
+    recordLocalLeaderboard(profile, stats);
+    syncCloudLeaderboard(profile, stats).catch(() => {});
+    const weekly = recordWeeklyGame(record);
+    syncCloudWeeklyLeaderboard(profile, weekly).catch(() => {});
+
+    const opp = (opponentName || "").trim();
+    const eligible = opp ? await pvpRewardEligible(opp) : true;
+    if (!eligible) {
+      setRewardSkippedReason(
+        `Already paid out vs ${opp} today — only one PvP reward per opponent per day.`
+      );
+      return;
+    }
+
+    const result = applyWinReward({
+      mode: "classic",
+      perfect,
+      isPvp: true,
+    });
+    if (opp) void recordPvpPayout(opp);
+    setRewardResult(result);
+  }, [enemyShots, opponentName]);
+
   // ── Winner ───────────────────────────────────────────────────
   const declareWinner = useCallback(
     (side: Side, msg: string) => {
@@ -146,9 +209,11 @@ export function MultiplayerGame({
         setRoomStatus(roomId, "finished");
         clearMessages(roomId);
         setMessages([]);
+        // Record stats + weekly + apply reward (with PvP farming cap).
+        void awardPvpWin();
       }
     },
-    [mySide, roomId]
+    [mySide, roomId, awardPvpWin]
   );
 
   // ── Room load / join ────────────────────────────────────────
@@ -393,6 +458,7 @@ export function MultiplayerGame({
         ? "You go first. Take your shot."
         : "Opponent goes first. Stand by…"
     );
+    matchStartedAtRef.current = Date.now();
     /* eslint-enable react-hooks/set-state-in-effect */
     if (mySide === "p1") void setRoomStatus(roomId, "playing");
   }, [myReady, opponentReady, stage, mySide, roomId]);
@@ -606,6 +672,16 @@ export function MultiplayerGame({
               </h2>
               <p className="text-fg-dim mt-1">{winReason}</p>
             </div>
+            {rewardResult && (
+              <div className="text-left">
+                <RewardSummary result={rewardResult} />
+              </div>
+            )}
+            {rewardSkippedReason && (
+              <div className="rounded-xl px-3 py-2 text-xs text-fg-dim border border-white/10 bg-black/30">
+                {rewardSkippedReason}
+              </div>
+            )}
             <div className="grid xl:grid-cols-2 gap-6">
               <Board
                 board={enemyBoardData}

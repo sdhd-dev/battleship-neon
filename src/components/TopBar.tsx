@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useTheme } from "./ThemeProvider";
 import { useAuth } from "./AuthProvider";
+import {
+  progressInLevel,
+  titleForLevel,
+  xpForLevel,
+  xpToNext,
+} from "@/lib/progression";
+import { buildInviteUrl, fetchReferralStats } from "@/lib/referrals";
 
 interface TopBarProps {
   onUpgrade: () => void;
@@ -16,7 +24,19 @@ export function TopBar({ onUpgrade }: TopBarProps) {
   const { profile, setProfile, username, signOut, cloudEnabled, isGuest } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [referralStats, setReferralStats] = useState<{ count: number; coinsEarned: number }>({
+    count: 0,
+    coinsEarned: 0,
+  });
+  const [linkCopied, setLinkCopied] = useState(false);
   const authRef = useRef<HTMLDivElement>(null);
+
+  const coins = profile.coins ?? 0;
+  const xp = profile.xp ?? 0;
+  const level = profile.level ?? 1;
+  const title = titleForLevel(level);
+  const progress = progressInLevel(xp, level);
+  const toNext = xpToNext(xp, level);
 
   useEffect(() => {
     if (!authOpen) return;
@@ -38,26 +58,99 @@ export function TopBar({ onUpgrade }: TopBarProps) {
     };
   }, [authOpen]);
 
+  useEffect(() => {
+    if (!authOpen) return;
+    if (!username) return;
+    fetchReferralStats(username).then(setReferralStats).catch(() => {});
+  }, [authOpen, username]);
+
   const signedIn = Boolean(username);
+  const inviteUrl = buildInviteUrl(profile.username || username || "captain");
+
+  const copyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 1500);
+    } catch {
+      // clipboard unavailable; ignore
+    }
+  };
 
   return (
     <header className="relative z-50 flex items-center justify-between p-4 sm:p-6 gap-3">
-      <div className="flex items-center gap-3">
-        <div className="relative">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent via-accent-3 to-accent-2 shadow-[0_0_18px_rgba(0,240,255,0.5)]" />
-          <motion.div
-            className="absolute inset-0 rounded-xl border border-accent/60"
-            animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
-            transition={{ duration: 2.4, repeat: Infinity }}
-          />
-        </div>
-        <div className="leading-tight">
-          <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">Naval Combat OS</div>
-          <h1 className="text-xl sm:text-2xl font-extrabold title-grad">BATTLESHIP.NEON</h1>
+      <div className="flex items-center gap-3 min-w-0">
+        <Link href="/" className="flex items-center gap-3 shrink-0">
+          <div className="relative">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent via-accent-3 to-accent-2 shadow-[0_0_18px_rgba(0,240,255,0.5)]" />
+            <motion.div
+              className="absolute inset-0 rounded-xl border border-accent/60"
+              animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0, 0.6] }}
+              transition={{ duration: 2.4, repeat: Infinity }}
+            />
+          </div>
+          <div className="leading-tight">
+            <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">Naval Combat OS</div>
+            <h1 className="text-xl sm:text-2xl font-extrabold title-grad">BATTLESHIP.NEON</h1>
+          </div>
+        </Link>
+
+        {/* Level + XP bar */}
+        <div className="hidden md:flex items-center ml-3 px-3 py-1.5 rounded-xl border border-white/10 bg-black/30 min-w-[200px] gap-3">
+          <div className="leading-tight">
+            <div className="text-[9px] uppercase tracking-[0.3em] text-fg-dim">Lv {level}</div>
+            <div
+              className="text-xs font-bold leading-tight"
+              style={{ color: "var(--accent)", textShadow: "0 0 8px var(--accent)" }}
+            >
+              {title}
+            </div>
+          </div>
+          <div className="flex-1">
+            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+              <motion.div
+                className="h-full"
+                style={{
+                  background:
+                    "linear-gradient(90deg, var(--accent), var(--accent-2))",
+                  boxShadow: "0 0 8px var(--accent)",
+                }}
+                animate={{ width: `${Math.round(progress * 100)}%` }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+              />
+            </div>
+            <div className="text-[9px] text-fg-dim mt-1 tabular-nums">
+              {level >= 100 ? "MAX" : `${xp - xpForLevel(level)} / ${xpForLevel(level + 1) - xpForLevel(level)} · ${toNext} to next`}
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Coin balance */}
+        <Link
+          href="/shop"
+          className="hidden sm:inline-flex items-center gap-2 rounded-xl px-3 py-2 border border-amber-300/40 bg-amber-300/10 hover:bg-amber-300/20 transition-colors"
+          aria-label="Open shop"
+        >
+          <span className="text-lg leading-none">⚓</span>
+          <span
+            className="font-bold tabular-nums text-sm"
+            style={{ color: "#fbbf24", textShadow: "0 0 10px #fbbf24" }}
+          >
+            {coins.toLocaleString()}
+          </span>
+        </Link>
+        <Link
+          href="/shop"
+          className="inline-flex sm:hidden items-center gap-1 rounded-xl px-2 py-2 border border-amber-300/40 bg-amber-300/10 text-sm"
+        >
+          <span>⚓</span>
+          <span className="tabular-nums" style={{ color: "#fbbf24" }}>
+            {coins}
+          </span>
+        </Link>
+
         <button
           onClick={onUpgrade}
           className="hidden sm:inline-flex neon-btn rounded-xl px-3 py-2 text-sm font-semibold"
@@ -85,7 +178,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="absolute right-0 mt-2 w-72 glass rounded-2xl p-4 z-50"
+              className="absolute right-0 mt-2 w-80 glass rounded-2xl p-4 z-50"
             >
               {!editingProfile ? (
                 <>
@@ -103,9 +196,55 @@ export function TopBar({ onUpgrade }: TopBarProps) {
                   {signedIn && username && (
                     <div className="text-xs text-fg-dim mt-1">@{username}</div>
                   )}
+
+                  {/* Level + coins summary */}
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">Rank</div>
+                      <div className="text-sm font-bold" style={{ color: "var(--accent)" }}>
+                        Lv {level} · {title}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">Coins</div>
+                      <div className="text-sm font-bold" style={{ color: "#fbbf24" }}>
+                        ⚓ {coins.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Referrals */}
+                  <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
+                      Invite friends
+                    </div>
+                    <div className="text-xs text-fg-dim mt-1">
+                      Both get +50 ⚓ when they sign up.
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <input
+                        readOnly
+                        value={inviteUrl}
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                        className="flex-1 rounded-md bg-black/40 border border-white/10 px-2 py-1 text-[11px] font-mono"
+                      />
+                      <button
+                        onClick={copyInvite}
+                        className="neon-btn rounded-md px-2 py-1 text-[11px] font-semibold whitespace-nowrap"
+                      >
+                        {linkCopied ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                    {signedIn && (
+                      <div className="text-[11px] text-fg-dim mt-2">
+                        {referralStats.count} invited · +{referralStats.coinsEarned} ⚓ earned
+                      </div>
+                    )}
+                  </div>
+
                   {!signedIn && profile.isGuest && cloudEnabled && (
-                    <div className="text-[11px] text-fg-dim mt-2 leading-relaxed">
-                      Stats saved on this device. Sign in to sync with the global leaderboard.
+                    <div className="text-[11px] text-fg-dim mt-3 leading-relaxed">
+                      Stats saved on this device. Sign in to sync coins, levels, and the global leaderboard.
                     </div>
                   )}
 
