@@ -145,7 +145,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {/* Coin balance — desktop only; mobile users see coins in profile dropdown */}
+        {/* Coin balance — desktop shows count; mobile shows compact icon */}
         <Link
           href="/shop"
           suppressHydrationWarning
@@ -161,6 +161,13 @@ export function TopBar({ onUpgrade }: TopBarProps) {
             {coins.toLocaleString()}
           </span>
         </Link>
+        <Link
+          href="/shop"
+          className="sm:hidden inline-flex items-center justify-center rounded-xl px-2.5 py-2 border border-amber-300/40 bg-amber-300/10 hover:bg-amber-300/20 text-base"
+          aria-label="Open shop"
+        >
+          ⚓
+        </Link>
 
         <Link
           href="/clans"
@@ -169,6 +176,13 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         >
           <span>⚑</span>
           <span>Clans</span>
+        </Link>
+        <Link
+          href="/clans"
+          className="sm:hidden inline-flex items-center justify-center rounded-xl px-2.5 py-2 border border-white/15 hover:bg-white/5 text-base"
+          aria-label="Clans"
+        >
+          ⚑
         </Link>
         <button
           onClick={onUpgrade}
