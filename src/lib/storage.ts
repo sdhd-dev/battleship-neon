@@ -296,6 +296,7 @@ export async function syncCloudProfile(profile: LocalProfile) {
       {
         id: uid,
         username: profile.username,
+        username_lc: profile.username?.toLowerCase() ?? null,
         city: profile.city,
         pro: profile.pro,
         ship_skin: profile.shipSkin,

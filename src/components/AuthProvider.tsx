@@ -18,8 +18,7 @@ import { CoinAnimation } from "./CoinAnimation";
 import { LevelUpOverlay } from "./LevelUpOverlay";
 import { getSkinGradient, getThemeVars } from "@/lib/shop-catalog";
 
-type AuthResultCode = "email_not_confirmed";
-type AuthResult = { ok: boolean; message: string; code?: AuthResultCode };
+type AuthResult = { ok: boolean; message: string };
 
 interface AuthContextValue {
   profile: LocalProfile;
@@ -35,28 +34,27 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const USERNAME_DOMAIN = "battleship.neon";
-const USERNAME_RE = /^[a-z0-9_]{3,24}$/i;
-
-function toAuthEmail(username: string) {
-  const sanitized = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, "_");
-  return `${sanitized}@${USERNAME_DOMAIN}`;
-}
-
-function fromAuthEmail(email: string | null | undefined): string | null {
-  if (!email) return null;
-  const [local, domain] = email.split("@");
-  if (!local) return null;
-  if (domain && domain !== USERNAME_DOMAIN) return local;
-  return local;
-}
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/i;
 
 function validateUsername(username: string): string | null {
   if (!username) return "Callsign is required.";
   if (!USERNAME_RE.test(username)) {
-    return "Username can only contain letters, numbers and _";
+    return "Username must be 3–20 letters, numbers or _";
   }
   return null;
+}
+
+async function lookupAuthEmail(
+  sb: ReturnType<typeof getSupabase>,
+  usernameLc: string,
+): Promise<string | null> {
+  if (!sb) return null;
+  const { data } = await sb
+    .from("profiles")
+    .select("auth_email")
+    .eq("username_lc", usernameLc)
+    .maybeSingle();
+  return data?.auth_email ?? null;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -119,15 +117,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!cloudEnabled) return;
     const sb = getSupabase();
     if (!sb) return;
-    sb.auth.getUser().then(({ data }) => {
-      const name = fromAuthEmail(data.user?.email);
+    // The synthetic email no longer encodes the username — look the row up
+    // by user id and read the canonical username from `profiles`.
+    const resolveByUserId = async (userId: string | null | undefined) => {
+      if (!userId) {
+        setUsername(null);
+        return;
+      }
+      const { data } = await sb
+        .from("profiles")
+        .select("username")
+        .eq("id", userId)
+        .maybeSingle();
+      const name = data?.username ?? null;
       setUsername(name);
       if (name) void hydrateFromCloud(name);
-    });
+    };
+    sb.auth.getUser().then(({ data }) => resolveByUserId(data.user?.id));
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
-      const name = fromAuthEmail(session?.user?.email);
-      setUsername(name);
-      if (name) void hydrateFromCloud(name);
+      void resolveByUserId(session?.user?.id);
     });
     return () => {
       sub.subscription.unsubscribe();
@@ -159,15 +167,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void claimPendingReferralRewards(name);
   }
 
-  async function upsertCloudProfile(name: string) {
+  async function upsertCloudProfile(
+    name: string,
+    extras?: { auth_email?: string }
+  ) {
     const sb = getSupabase();
     if (!sb) return;
     const { data: userData } = await sb.auth.getUser();
     const userId = userData.user?.id;
     if (!userId) return;
-    await sb
-      .from("profiles")
-      .upsert({ id: userId, username: name }, { onConflict: "id" });
+    await sb.from("profiles").upsert(
+      {
+        id: userId,
+        username: name,
+        username_lc: name.toLowerCase(),
+        ...(extras?.auth_email ? { auth_email: extras.auth_email } : {}),
+      },
+      { onConflict: "id" }
+    );
   }
 
   const signInWithPassword = async (rawUsername: string, password: string): Promise<AuthResult> => {
@@ -184,18 +201,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const sb = getSupabase();
     if (!sb) return { ok: false, message: "Supabase client unavailable." };
 
-    const { error } = await sb.auth.signInWithPassword({
-      email: toAuthEmail(name),
-      password,
-    });
+    const email = await lookupAuthEmail(sb, name.toLowerCase());
+    if (!email) {
+      return { ok: false, message: "Wrong callsign or cipher key." };
+    }
+
+    const { error } = await sb.auth.signInWithPassword({ email, password });
     if (error) {
-      if (/email[_ ]not[_ ]confirmed|confirm/i.test(error.message)) {
-        return {
-          ok: false,
-          code: "email_not_confirmed",
-          message: "Account not yet activated. Please wait 1 minute and try again.",
-        };
-      }
       const msg = /invalid login credentials/i.test(error.message)
         ? "Wrong callsign or cipher key."
         : error.message;
@@ -213,6 +225,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const name = rawUsername.trim();
     const validation = validateUsername(name);
     if (validation) return { ok: false, message: validation };
+    if (password.length < 6) {
+      return { ok: false, message: "Cipher key must be at least 6 characters." };
+    }
 
     if (!cloudEnabled) {
       const next = { ...profile, username: name, isGuest: false };
@@ -224,34 +239,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const sb = getSupabase();
     if (!sb) return { ok: false, message: "Supabase client unavailable." };
 
-    const email = toAuthEmail(name);
-    const { data, error } = await sb.auth.signUp({ email, password });
-
-    if (error) {
-      const alreadyExists = /already (registered|exists)|user already/i.test(error.message ?? "");
-      if (alreadyExists) {
-        return { ok: false, message: "Callsign already taken — try signing in." };
-      }
-      return { ok: false, message: error.message };
+    // Account creation runs server-side via /api/auth/signup so we can use
+    // the service-role admin API to skip email confirmation. The key never
+    // ships to the browser.
+    let res: Response;
+    try {
+      res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ username: name, password }),
+      });
+    } catch {
+      return { ok: false, message: "Network error. Try again." };
     }
 
-    if (!data.session) {
-      const { error: signInErr } = await sb.auth.signInWithPassword({ email, password });
-      if (signInErr) {
-        if (/email[_ ]not[_ ]confirmed|confirm/i.test(signInErr.message)) {
-          return {
-            ok: false,
-            code: "email_not_confirmed",
-            message: "Account created! Please wait 1 minute and try signing in.",
-          };
-        }
-        return { ok: false, message: signInErr.message };
-      }
+    let body: { userId?: string; email?: string; error?: string } = {};
+    try {
+      body = await res.json();
+    } catch {
+      return { ok: false, message: "Sign up failed." };
+    }
+    if (!res.ok || !body.email) {
+      return { ok: false, message: body.error || "Sign up failed." };
+    }
+
+    const { error: signInErr } = await sb.auth.signInWithPassword({
+      email: body.email,
+      password,
+    });
+    if (signInErr) {
+      return { ok: false, message: signInErr.message };
     }
 
     setProfile({ ...profile, username: name, isGuest: false });
     setUsername(name);
-    void upsertCloudProfile(name);
     void processReferralOnSignup(name);
     return { ok: true, message: "Account created." };
   };

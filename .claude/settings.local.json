@@ -33,7 +33,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/shop)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/)",
       "Bash(grep -E \"^/Users.*\\\\.\\(ts|tsx\\)$|^\\\\s+[0-9]+:[0-9]+\\\\s+\\(error|warning\\)\")",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(echo \"EXIT=$?\")"
     ]
   }
 }

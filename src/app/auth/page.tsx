@@ -60,28 +60,17 @@ function AuthPageInner() {
     );
   }, []);
 
-  // Show a banner when we landed here from an expired/invalid OTP redirect,
-  // a fresh signup that hit the unconfirmed-email path, or a tab hint —
-  // and scrub the marker + any leftover Supabase fragment from the URL.
+  // Legacy OTP-error fragments may still land here from old confirmation
+  // links — scrub them and show a neutral notice.
   useEffect(() => {
     const recovered = searchParams.get("recovered");
-    const justSignedUp = searchParams.get("justSignedUp");
     const tab = searchParams.get("tab");
     const hash = typeof window !== "undefined" ? window.location.hash : "";
     const hashHasOtpError = /error_code=otp_expired|error=access_denied/i.test(hash);
 
-    if (justSignedUp) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setNotice("Account created! Please wait 1 minute and try signing in.");
-      setMode("signin");
-      if (typeof window !== "undefined") {
-        window.history.replaceState(null, "", "/auth?tab=signin");
-      }
-      return;
-    }
-
     if (recovered || hashHasOtpError) {
-      setNotice("That confirmation link expired. Sign in with your callsign and cipher key — no email needed.");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNotice("Sign in with your callsign and cipher key — no email needed.");
       if (typeof window !== "undefined") {
         const next = tab === "signup" ? "/auth?tab=signup" : "/auth";
         window.history.replaceState(null, "", next);
@@ -98,8 +87,8 @@ function AuthPageInner() {
       setError("Callsign and cipher key are required.");
       return;
     }
-    if (!/^[A-Za-z0-9_]+$/.test(username.trim())) {
-      setError("Username can only contain letters, numbers and _");
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(username.trim())) {
+      setError("Callsign must be 3–20 letters, numbers or _");
       return;
     }
     if (mode === "signup" && password.length < 6) {
@@ -112,13 +101,6 @@ function AuthPageInner() {
       const fn = mode === "signin" ? signInWithPassword : signUpWithPassword;
       const res = await fn(username.trim(), password);
       if (!res.ok) {
-        if (res.code === "email_not_confirmed") {
-          // Project still has confirmations on. Bounce back to the sign-in
-          // tab with the friendly delay message — the synthetic email will
-          // typically clear within a minute.
-          router.replace("/auth?tab=signin&justSignedUp=1");
-          return;
-        }
         setError(res.message);
         return;
       }
@@ -300,9 +282,9 @@ function AuthPageInner() {
                       placeholder="captain_nova"
                       className="neon-input"
                       disabled={loading}
-                      pattern="[A-Za-z0-9_]{3,24}"
+                      pattern="[A-Za-z0-9_]{3,20}"
                       minLength={3}
-                      maxLength={24}
+                      maxLength={20}
                     />
                   </div>
                   <p className="text-[10px] text-fg-dim/80 pl-1">
