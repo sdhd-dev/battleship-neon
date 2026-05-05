@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import clsx from "clsx";
@@ -26,6 +26,17 @@ export default function ShopPage() {
   const [tab, setTab] = useState<Tab>("skins");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The profile is hydrated from localStorage on the client only, so its
+  // server-rendered shape (default zeros) won't match the post-mount
+  // values (real coins, owned cosmetics, active selections). Gate the
+  // profile-dependent UI on `mounted` to avoid hydration mismatches in
+  // the card grids; the balance has suppressHydrationWarning for the
+  // same reason but stays visible since it's just a text swap.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
 
   const owned = new Set(profile.ownedCosmetics ?? []);
   const coins = profile.coins ?? 0;
@@ -85,6 +96,7 @@ export default function ShopPage() {
               Balance
             </div>
             <div
+              suppressHydrationWarning
               className="text-2xl font-extrabold tabular-nums"
               style={{ color: "#fbbf24", textShadow: "0 0 12px #fbbf24" }}
             >
@@ -101,7 +113,7 @@ export default function ShopPage() {
           <div className="neon-error rounded-xl px-3 py-2 text-sm">{error}</div>
         )}
 
-        {tab === "skins" && (
+        {mounted && tab === "skins" && (
           <SectionGrid>
             {SHIP_SKINS.map((s) => (
               <SkinCard
@@ -117,7 +129,7 @@ export default function ShopPage() {
           </SectionGrid>
         )}
 
-        {tab === "themes" && (
+        {mounted && tab === "themes" && (
           <SectionGrid>
             {BOARD_THEMES.map((t) => (
               <ThemeCard
@@ -133,7 +145,7 @@ export default function ShopPage() {
           </SectionGrid>
         )}
 
-        {tab === "badges" && (
+        {mounted && tab === "badges" && (
           <SectionGrid>
             <BadgeCard
               empty
@@ -154,7 +166,7 @@ export default function ShopPage() {
           </SectionGrid>
         )}
 
-        {tab === "pro" && (
+        {mounted && tab === "pro" && (
           <ProCard
             owned={profile.pro}
             affordable={coins >= PRO_PRICE}

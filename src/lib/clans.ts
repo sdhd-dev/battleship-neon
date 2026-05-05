@@ -1,7 +1,11 @@
 "use client";
 
 import { getSupabase, supabaseEnabled } from "./supabase/client";
-import { weekStartIso } from "./tournament";
+import { currentWeekStart, weekStartIso } from "./tournament";
+import { loadProfile, saveProfile, syncCloudProfile } from "./storage";
+import { notify } from "./notify";
+
+export const MIN_CLAN_DONATION = 10;
 
 export interface ClanRow {
   id: string;
@@ -43,6 +47,15 @@ export interface ClanMissionRow {
   reward_coins: number;
   completed: boolean;
   week_start: string;
+  created_at: string;
+}
+
+export interface ClanDonationRow {
+  id: string;
+  clan_id: string;
+  user_id: string;
+  username: string;
+  amount: number;
   created_at: string;
 }
 
@@ -306,7 +319,14 @@ export async function leaveClan(): Promise<{ ok: boolean; error?: string }> {
 }
 
 export async function donateToClan(amount: number): Promise<{ ok: boolean; error?: string }> {
-  if (amount <= 0) return { ok: false, error: "Enter a positive amount." };
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: "Enter a positive amount." };
+  }
+  if (amount < MIN_CLAN_DONATION) {
+    const msg = `Minimum donation is ${MIN_CLAN_DONATION} coins.`;
+    notify(msg, "error");
+    return { ok: false, error: msg };
+  }
   const sb = getSupabase();
   if (!sb) return { ok: false, error: "Cloud sync is off." };
   const uid = await authedUserId();
@@ -314,7 +334,39 @@ export async function donateToClan(amount: number): Promise<{ ok: boolean; error
   const my = await getMyClan();
   if (!my) return { ok: false, error: "Not in a clan." };
 
-  await sb.rpc("clan_donate", { p_clan_id: my.clan.id, p_user_id: uid, p_amount: amount });
+  const before = loadProfile();
+  const balance = before.coins ?? 0;
+  if (balance < amount) {
+    notify("Insufficient coins", "error");
+    return { ok: false, error: "Insufficient coins" };
+  }
+
+  // Optimistic local deduction so the UI reflects the spend immediately.
+  saveProfile({ ...before, coins: balance - amount });
+
+  const { data, error } = await sb.rpc("clan_donate", {
+    p_clan_id: my.clan.id,
+    p_user_id: uid,
+    p_amount: amount,
+  });
+
+  const result = (data ?? null) as { ok?: boolean; error?: string } | null;
+  if (error || (result && result.ok === false)) {
+    // Revert local optimistic update on failure.
+    saveProfile(before);
+    const reason =
+      result?.error === "insufficient"
+        ? "Insufficient coins"
+        : error?.message ?? "Donation failed";
+    notify(reason, "error");
+    return { ok: false, error: reason };
+  }
+
+  // Re-pull cloud truth to keep coins exactly aligned with the server,
+  // then mirror back to localStorage and broadcast a profile change.
+  const next = loadProfile();
+  void syncCloudProfile(next);
+  notify(`⚓ ${amount.toLocaleString()} coins donated to clan bank!`, "success");
   return { ok: true };
 }
 
@@ -327,8 +379,8 @@ export async function distributeBank(
   if (!uid) return { ok: false, error: "Not signed in." };
   const my = await getMyClan();
   if (!my) return { ok: false, error: "Not in a clan." };
-  if (my.member.role !== "leader") {
-    return { ok: false, error: "Only the leader can distribute." };
+  if (my.member.role !== "leader" && my.member.role !== "officer") {
+    return { ok: false, error: "Only leaders/officers can distribute." };
   }
   if (amountPerMember <= 0) return { ok: false, error: "Enter a positive amount." };
 
@@ -344,6 +396,88 @@ export async function distributeBank(
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true, perMember: amountPerMember, members: members.length };
+}
+
+// Sends bank coins to a single clan member's profile balance. Used by
+// "Distribute to member" (leader picks a recipient) and "Withdraw"
+// (leader sends to themselves). Caller-side gate: leader/officer only.
+export async function sendBankToMember(
+  targetUserId: string,
+  amount: number
+): Promise<{ ok: boolean; error?: string }> {
+  const sb = getSupabase();
+  if (!sb) return { ok: false, error: "Cloud sync is off." };
+  const uid = await authedUserId();
+  if (!uid) return { ok: false, error: "Not signed in." };
+  const my = await getMyClan();
+  if (!my) return { ok: false, error: "Not in a clan." };
+  if (my.member.role !== "leader" && my.member.role !== "officer") {
+    return { ok: false, error: "Only leaders/officers can withdraw." };
+  }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { ok: false, error: "Enter a positive amount." };
+  }
+  if (my.clan.bank_coins < amount) {
+    return { ok: false, error: "Not enough coins in the bank." };
+  }
+
+  const { error } = await sb.rpc("clan_send_to_member", {
+    p_clan_id: my.clan.id,
+    p_target_user_id: targetUserId,
+    p_amount: amount,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  // If the recipient is the caller, refresh local profile so the UI
+  // reflects the credited coins immediately.
+  if (targetUserId === uid) {
+    const local = loadProfile();
+    saveProfile({ ...local, coins: (local.coins ?? 0) + amount });
+    void syncCloudProfile({ ...local, coins: (local.coins ?? 0) + amount });
+  }
+  return { ok: true };
+}
+
+export async function withdrawFromBank(
+  amount: number
+): Promise<{ ok: boolean; error?: string }> {
+  const uid = await authedUserId();
+  if (!uid) return { ok: false, error: "Not signed in." };
+  return sendBankToMember(uid, amount);
+}
+
+// Returns the top contributor for the current week (Mon-anchored UTC),
+// based on rows in clan_donations. Falls back to null when no donations
+// have been made this week.
+export async function fetchTopWeeklyDonor(
+  clanId: string
+): Promise<{ username: string; user_id: string; total: number } | null> {
+  const sb = getSupabase();
+  if (!sb) return null;
+  const since = currentWeekStart().toISOString();
+  const { data } = await sb
+    .from("clan_donations")
+    .select("user_id,username,amount")
+    .eq("clan_id", clanId)
+    .gte("created_at", since);
+  const rows = (data as Pick<ClanDonationRow, "user_id" | "username" | "amount">[] | null) ?? [];
+  if (rows.length === 0) return null;
+  const totals = new Map<string, { username: string; total: number }>();
+  for (const r of rows) {
+    const cur = totals.get(r.user_id);
+    if (cur) cur.total += r.amount;
+    else totals.set(r.user_id, { username: r.username, total: r.amount });
+  }
+  let bestId = "";
+  let best = { username: "", total: 0 };
+  for (const [uid, agg] of totals) {
+    if (agg.total > best.total) {
+      best = agg;
+      bestId = uid;
+    }
+  }
+  if (!bestId) return null;
+  return { username: best.username, user_id: bestId, total: best.total };
 }
 
 export async function fetchClanChat(clanId: string, limit = 80): Promise<ClanChatRow[]> {

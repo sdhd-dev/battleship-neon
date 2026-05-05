@@ -5,6 +5,7 @@ import { getSupabase, supabaseEnabled } from "@/lib/supabase/client";
 import {
   LocalProfile,
   PROFILE_CHANGE_EVENT,
+  clearLocalUserData,
   loadProfile,
   pullCloudProfile,
   saveProfile,
@@ -16,6 +17,7 @@ import {
 } from "@/lib/referrals";
 import { CoinAnimation } from "./CoinAnimation";
 import { LevelUpOverlay } from "./LevelUpOverlay";
+import { NeonToast } from "./NeonToast";
 import { getSkinGradient, getThemeVars } from "@/lib/shop-catalog";
 
 type AuthResult = { ok: boolean; message: string };
@@ -214,7 +216,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: msg };
     }
 
-    setProfile({ ...profile, username: name, isGuest: false });
+    // Drop any cached profile/stats from a previous account on this device,
+    // then seed a minimal local profile. We deliberately use saveProfile
+    // (local-only) instead of setProfile so we don't push stale economy
+    // fields to the new user's cloud row — hydrateFromCloud will overwrite
+    // local with the authoritative server snapshot.
+    clearLocalUserData();
+    const fresh: LocalProfile = { ...loadProfile(), username: name, isGuest: false };
+    setProfileState(fresh);
+    saveProfile(fresh);
     setUsername(name);
     void upsertCloudProfile(name);
     void hydrateFromCloud(name);
@@ -272,7 +282,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, message: signInErr.message };
     }
 
-    setProfile({ ...profile, username: name, isGuest: false });
+    // Brand-new account: drop any cached profile from a previous signed-in
+    // user on this device so the new user starts at default coins/xp/etc.
+    // and we don't accidentally push the previous user's data to the new
+    // cloud row via syncCloudProfile.
+    clearLocalUserData();
+    const fresh: LocalProfile = { ...loadProfile(), username: name, isGuest: false };
+    setProfile(fresh);
     setUsername(name);
     void processReferralOnSignup(name);
     return { ok: true, message: "Account created." };
@@ -296,6 +312,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const sb = getSupabase();
       if (sb) await sb.auth.signOut();
     }
+    clearLocalUserData();
+    setProfileState(loadProfile());
     setUsername(null);
   };
 
@@ -322,6 +340,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
       <CoinAnimation />
       <LevelUpOverlay />
+      <NeonToast />
     </AuthContext.Provider>
   );
 }

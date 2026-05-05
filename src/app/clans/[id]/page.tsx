@@ -14,6 +14,7 @@ import {
   ClanMissionRow,
   ClanRow,
   ClanWarRow,
+  MIN_CLAN_DONATION,
   distributeBank,
   donateToClan,
   ensureWeeklyMission,
@@ -22,11 +23,15 @@ import {
   fetchClanMembers,
   fetchClanMissions,
   fetchClanWar,
+  fetchTopWeeklyDonor,
   getMyClan,
   leaveClan,
+  sendBankToMember,
   sendClanChat,
+  withdrawFromBank,
 } from "@/lib/clans";
 import { getSupabase, supabaseEnabled } from "@/lib/supabase/client";
+import { notify } from "@/lib/notify";
 
 export default function ClanProfilePage({
   params,
@@ -44,11 +49,19 @@ export default function ClanProfilePage({
   const [war, setWar] = useState<{ war: ClanWarRow; opponent: ClanRow | null } | null>(null);
   const [chat, setChat] = useState<ClanChatRow[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const [donateAmount, setDonateAmount] = useState<number>(10);
+  const [donateAmount, setDonateAmount] = useState<number>(MIN_CLAN_DONATION);
   const [distAmount, setDistAmount] = useState<number>(10);
+  const [withdrawAmount, setWithdrawAmount] = useState<number>(50);
+  const [memberSendAmount, setMemberSendAmount] = useState<number>(50);
+  const [memberSendTarget, setMemberSendTarget] = useState<string>("");
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [myClanId, setMyClanId] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<string | null>(null);
+  const [topDonor, setTopDonor] = useState<{
+    user_id: string;
+    username: string;
+    total: number;
+  } | null>(null);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
 
@@ -61,12 +74,13 @@ export default function ClanProfilePage({
     }
     setClan(c);
     await ensureWeeklyMission(id);
-    const [m, ms, w, ch, mine] = await Promise.all([
+    const [m, ms, w, ch, mine, top] = await Promise.all([
       fetchClanMembers(id),
       fetchClanMissions(id),
       fetchClanWar(id),
       fetchClanChat(id),
       getMyClan(),
+      fetchTopWeeklyDonor(id),
     ]);
     setMembers(m);
     setMissions(ms);
@@ -74,6 +88,7 @@ export default function ClanProfilePage({
     setChat(ch);
     setMyClanId(mine?.clan.id ?? null);
     setMyRole(mine?.member.role ?? null);
+    setTopDonor(top);
   }, [cloudEnabled, id]);
 
   useEffect(() => {
@@ -85,7 +100,7 @@ export default function ClanProfilePage({
   }, [refresh]);
 
   const isMember = myClanId === id;
-  const isLeader = isMember && myRole === "leader";
+  const canManageBank = isMember && (myRole === "leader" || myRole === "officer");
 
   // Realtime subscriptions for chat, members, mission progress.
   useEffect(() => {
@@ -142,12 +157,23 @@ export default function ClanProfilePage({
 
   const handleDonate = async () => {
     setActionMsg(null);
+    if (donateAmount < MIN_CLAN_DONATION) {
+      setActionMsg(`Minimum donation is ${MIN_CLAN_DONATION} coins.`);
+      return;
+    }
+    if ((profile.coins ?? 0) < donateAmount) {
+      const msg = "Not enough coins to donate that much.";
+      notify(msg, "error");
+      setActionMsg(msg);
+      return;
+    }
     const res = await donateToClan(donateAmount);
     if (!res.ok) {
+      // donateToClan already raised a toast; mirror in inline status too.
       setActionMsg(res.error ?? "Donation failed.");
       return;
     }
-    setActionMsg(`Donated ⚓ ${donateAmount} to the clan bank.`);
+    setActionMsg(`Donated ⚓ ${donateAmount.toLocaleString()} to the clan bank.`);
     await refresh();
   };
 
@@ -164,11 +190,44 @@ export default function ClanProfilePage({
     await refresh();
   };
 
+  const handleWithdraw = async () => {
+    setActionMsg(null);
+    const res = await withdrawFromBank(withdrawAmount);
+    if (!res.ok) {
+      notify(res.error ?? "Withdraw failed.", "error");
+      setActionMsg(res.error ?? "Withdraw failed.");
+      return;
+    }
+    setActionMsg(
+      `Withdrew ⚓ ${withdrawAmount.toLocaleString()} from the bank to your balance.`
+    );
+    await refresh();
+  };
+
+  const handleSendToMember = async () => {
+    setActionMsg(null);
+    if (!memberSendTarget) {
+      setActionMsg("Pick a member to send coins to.");
+      return;
+    }
+    const res = await sendBankToMember(memberSendTarget, memberSendAmount);
+    if (!res.ok) {
+      notify(res.error ?? "Send failed.", "error");
+      setActionMsg(res.error ?? "Send failed.");
+      return;
+    }
+    const target = members.find((m) => m.user_id === memberSendTarget);
+    setActionMsg(
+      `Sent ⚓ ${memberSendAmount.toLocaleString()} to ${target?.username ?? "member"}.`
+    );
+    await refresh();
+  };
+
   const handleLeave = async () => {
     if (!confirm("Leave this clan?")) return;
     const res = await leaveClan();
     if (!res.ok) {
-      alert(res.error ?? "Could not leave.");
+      notify(res.error ?? "Could not leave.");
       return;
     }
     router.push("/clans");
@@ -262,11 +321,19 @@ export default function ClanProfilePage({
                     {m.username[0]?.toUpperCase() ?? "?"}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold truncate">
-                      {m.username}
+                    <div className="font-semibold truncate flex items-center gap-2 flex-wrap">
+                      <span className="truncate">{m.username}</span>
                       {profile.username === m.username && (
-                        <span className="ml-2 text-[10px] uppercase tracking-wider text-accent">
+                        <span className="text-[10px] uppercase tracking-wider text-accent">
                           You
+                        </span>
+                      )}
+                      {topDonor && topDonor.user_id === m.user_id && (
+                        <span
+                          className="text-[10px] uppercase tracking-wider rounded-full px-2 py-[2px] border border-amber-300/40 bg-amber-300/10 text-amber-200"
+                          title={`Donated ⚓ ${topDonor.total.toLocaleString()} this week`}
+                        >
+                          🏆 Top donor
                         </span>
                       )}
                     </div>
@@ -281,7 +348,7 @@ export default function ClanProfilePage({
                     </div>
                   </div>
                   <div className="text-right text-xs text-fg-dim tabular-nums">
-                    ⚓ {m.contributed_coins}
+                    ⚓ {m.contributed_coins.toLocaleString()}
                   </div>
                 </div>
               ))}
@@ -361,49 +428,82 @@ export default function ClanProfilePage({
             )}
           </section>
 
-          {isMember && (
-            <section className="glass rounded-3xl p-5 grid gap-3">
+          <section className="glass rounded-3xl p-5 grid gap-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <h2 className="text-xl font-bold neon-text">🏦 Clan Bank</h2>
-              <div className="text-xs text-fg-dim">
-                Donate coins to the clan bank — leaders distribute them back to
-                members as rewards for clan-mission grinding.
+              <div
+                className="text-lg font-extrabold tabular-nums"
+                style={{ color: clan.color, textShadow: `0 0 10px ${clan.color}` }}
+              >
+                ⚓ {clan.bank_coins.toLocaleString()} coins
               </div>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3 grid gap-2">
-                  <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
-                    Donate
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      min={1}
-                      value={donateAmount}
-                      onChange={(e) => setDonateAmount(Math.max(1, +e.target.value || 0))}
-                      className="flex-1 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
-                    />
-                    <button
-                      onClick={handleDonate}
-                      className="neon-btn rounded-lg px-4 py-2 text-sm font-semibold"
-                    >
-                      Donate ⚓
-                    </button>
+            </div>
+            <div className="text-xs text-fg-dim">
+              Members donate coins to grow the bank. Leaders and officers
+              distribute them back as rewards for clan-mission grinding.
+            </div>
+
+            {isMember ? (
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3 grid gap-2">
+                <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
+                  Donate
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min={MIN_CLAN_DONATION}
+                    value={donateAmount}
+                    onChange={(e) =>
+                      setDonateAmount(Math.max(0, +e.target.value || 0))
+                    }
+                    className="flex-1 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
+                  />
+                  <button
+                    onClick={handleDonate}
+                    disabled={
+                      donateAmount < MIN_CLAN_DONATION ||
+                      (profile.coins ?? 0) < donateAmount
+                    }
+                    className="neon-btn rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Donate ⚓
+                  </button>
+                </div>
+                <div className="text-[11px] text-fg-dim">
+                  You have ⚓ {(profile.coins ?? 0).toLocaleString()} ·
+                  minimum donation ⚓ {MIN_CLAN_DONATION}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-fg-dim">
+                Join this clan to donate to its bank.
+              </div>
+            )}
+
+            {canManageBank && (
+              <div className="rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4 grid gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-amber-200">
+                    Clan Treasury · {myRole === "leader" ? "Leader" : "Officer"}
                   </div>
                   <div className="text-[11px] text-fg-dim">
-                    You have ⚓ {(profile.coins ?? 0).toLocaleString()}
+                    Bank ⚓ {clan.bank_coins.toLocaleString()}
                   </div>
                 </div>
 
-                {isLeader && (
-                  <div className="rounded-xl border border-amber-300/30 bg-amber-300/5 p-3 grid gap-2">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-white/10 bg-black/30 p-3 grid gap-2">
                     <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
-                      Distribute (leader)
+                      Distribute to all
                     </div>
                     <div className="flex gap-2">
                       <input
                         type="number"
                         min={1}
                         value={distAmount}
-                        onChange={(e) => setDistAmount(Math.max(1, +e.target.value || 0))}
+                        onChange={(e) =>
+                          setDistAmount(Math.max(1, +e.target.value || 0))
+                        }
                         className="flex-1 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
                       />
                       <button
@@ -414,19 +514,91 @@ export default function ClanProfilePage({
                       </button>
                     </div>
                     <div className="text-[11px] text-fg-dim">
-                      Pays ⚓ {distAmount} per member ·{" "}
-                      total ⚓ {(distAmount * members.length).toLocaleString()}
+                      ⚓ {distAmount} × {members.length} members = ⚓{" "}
+                      {(distAmount * members.length).toLocaleString()}
                     </div>
                   </div>
-                )}
-              </div>
-              {actionMsg && (
-                <div className="rounded-xl px-3 py-2 text-xs text-fg-dim border border-white/10 bg-black/30">
-                  {actionMsg}
+
+                  <div className="rounded-xl border border-white/10 bg-black/30 p-3 grid gap-2">
+                    <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
+                      Withdraw to me
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        value={withdrawAmount}
+                        onChange={(e) =>
+                          setWithdrawAmount(Math.max(1, +e.target.value || 0))
+                        }
+                        className="flex-1 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
+                      />
+                      <button
+                        onClick={handleWithdraw}
+                        disabled={withdrawAmount > clan.bank_coins}
+                        className="neon-btn rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Withdraw
+                      </button>
+                    </div>
+                    <div className="text-[11px] text-fg-dim">
+                      Sends bank coins to your own balance.
+                    </div>
+                  </div>
                 </div>
-              )}
-            </section>
-          )}
+
+                <div className="rounded-xl border border-white/10 bg-black/30 p-3 grid gap-2">
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
+                    Distribute to member
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      value={memberSendTarget}
+                      onChange={(e) => setMemberSendTarget(e.target.value)}
+                      className="flex-1 min-w-[140px] rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm"
+                    >
+                      <option value="">Pick member…</option>
+                      {members.map((m) => (
+                        <option key={m.user_id} value={m.user_id}>
+                          {m.username}
+                          {m.role !== "member" ? ` · ${m.role}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={1}
+                      value={memberSendAmount}
+                      onChange={(e) =>
+                        setMemberSendAmount(Math.max(1, +e.target.value || 0))
+                      }
+                      className="w-32 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
+                    />
+                    <button
+                      onClick={handleSendToMember}
+                      disabled={
+                        !memberSendTarget ||
+                        memberSendAmount > clan.bank_coins
+                      }
+                      className="neon-btn rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Send ⚓
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-fg-dim">
+                    Pay a single member from the bank — useful for rewarding
+                    individual contributions.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {actionMsg && (
+              <div className="rounded-xl px-3 py-2 text-xs text-fg-dim border border-white/10 bg-black/30">
+                {actionMsg}
+              </div>
+            )}
+          </section>
         </div>
 
         <aside className="lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)]">

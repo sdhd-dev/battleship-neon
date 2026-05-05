@@ -45,6 +45,8 @@ export interface LeaderboardEntry {
 export interface WeeklyStats {
   weekStart: string; // YYYY-MM-DD UTC
   wins: number;
+  losses: number;
+  perfect: number; // count of 100%-accuracy wins
   shotsFired: number;
   shotsHit: number;
 }
@@ -153,6 +155,25 @@ export function clearHistory() {
   localStorage.removeItem(WEEKLY_KEY);
 }
 
+// Keys that survive an auth boundary: UI prefs and the device-scoped
+// multiplayer ID. Everything else under the `bs.` namespace is treated as
+// per-user game data and removed on sign in/up/out.
+const PRESERVED_LOCAL_KEYS = new Set(["bs.theme", "bs.mp.playerId"]);
+
+export function clearLocalUserData() {
+  if (!isBrowser()) return;
+  const toRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key.startsWith("bs.") && !PRESERVED_LOCAL_KEYS.has(key)) {
+      toRemove.push(key);
+    }
+  }
+  for (const key of toRemove) localStorage.removeItem(key);
+  window.dispatchEvent(new CustomEvent(PROFILE_CHANGE_EVENT));
+}
+
 export function recordGame(stats: PlayerStats, record: GameRecord): { stats: PlayerStats; history: GameRecord[] } {
   const newStats: PlayerStats = {
     wins: stats.wins + (record.result === "win" ? 1 : 0),
@@ -210,12 +231,19 @@ export function loadLocalLeaderboard(): LeaderboardEntry[] {
 // ── Weekly tracking ──────────────────────────────────────────
 export function loadWeeklyStats(): WeeklyStats {
   const week = weekStartIso();
-  const empty: WeeklyStats = { weekStart: week, wins: 0, shotsFired: 0, shotsHit: 0 };
+  const empty: WeeklyStats = {
+    weekStart: week,
+    wins: 0,
+    losses: 0,
+    perfect: 0,
+    shotsFired: 0,
+    shotsHit: 0,
+  };
   if (!isBrowser()) return empty;
   try {
     const raw = localStorage.getItem(WEEKLY_KEY);
     if (!raw) return empty;
-    const parsed = JSON.parse(raw) as WeeklyStats;
+    const parsed = JSON.parse(raw) as Partial<WeeklyStats>;
     if (parsed.weekStart !== week) return empty; // implicit reset
     return { ...empty, ...parsed };
   } catch {
@@ -225,14 +253,35 @@ export function loadWeeklyStats(): WeeklyStats {
 
 export function recordWeeklyGame(record: GameRecord): WeeklyStats {
   const cur = loadWeeklyStats();
+  const win = record.result === "win" ? 1 : 0;
+  const loss = record.result === "loss" ? 1 : 0;
+  const perfect =
+    record.result === "win" &&
+    record.shotsFired > 0 &&
+    record.shotsHit === record.shotsFired
+      ? 1
+      : 0;
   const next: WeeklyStats = {
     weekStart: cur.weekStart,
-    wins: cur.wins + (record.result === "win" ? 1 : 0),
+    wins: cur.wins + win,
+    losses: cur.losses + loss,
+    perfect: cur.perfect + perfect,
     shotsFired: cur.shotsFired + record.shotsFired,
     shotsHit: cur.shotsHit + record.shotsHit,
   };
   if (isBrowser()) localStorage.setItem(WEEKLY_KEY, JSON.stringify(next));
   return next;
+}
+
+// Weekly tournament rating: +25 per win, −10 per loss, +10 bonus per
+// 100%-accuracy win. Floor at 0 so a cold-start losing streak doesn't
+// surface negative numbers on the board.
+export function computeWeeklyRating(
+  wins: number,
+  losses: number,
+  perfect: number
+): number {
+  return Math.max(0, wins * 25 - losses * 10 + perfect * 10);
 }
 
 // ── Cloud sync ───────────────────────────────────────────────
@@ -252,14 +301,19 @@ export async function syncCloudLeaderboard(profile: LocalProfile, stats: PlayerS
   const uid = await authedUserId();
   if (!uid) return;
   const accuracy = stats.shotsFired ? stats.shotsHit / stats.shotsFired : 0;
-  await sb.from("leaderboard").upsert({
-    username: profile.username,
-    city: profile.city,
-    wins: stats.wins,
-    accuracy,
-    rating: computeRating(stats.wins, accuracy),
-    updated_at: new Date().toISOString(),
-  });
+  // The all-time leaderboard reads from `profiles` directly — write the
+  // ranking columns (wins/accuracy/rating) onto the user's profile row.
+  await sb
+    .from("profiles")
+    .update({
+      city: profile.city,
+      wins: stats.wins,
+      accuracy,
+      rating: computeRating(stats.wins, accuracy),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", uid)
+    .then(() => undefined, () => undefined);
 }
 
 export async function syncCloudWeeklyLeaderboard(profile: LocalProfile, weekly: WeeklyStats) {
@@ -276,7 +330,7 @@ export async function syncCloudWeeklyLeaderboard(profile: LocalProfile, weekly: 
       week_start: weekly.weekStart,
       wins: weekly.wins,
       accuracy,
-      rating: computeRating(weekly.wins, accuracy),
+      rating: computeWeeklyRating(weekly.wins, weekly.losses, weekly.perfect),
       updated_at: new Date().toISOString(),
     },
     { onConflict: "username,week_start" }
@@ -355,19 +409,40 @@ export async function fetchCloudLeaderboard(): Promise<LeaderboardEntry[] | null
   const sb = getSupabase();
   if (!sb) return null;
   const { data, error } = await sb
-    .from("leaderboard")
+    .from("profiles")
     .select("username,city,wins,accuracy,rating,updated_at")
+    .not("username", "is", null)
     .order("rating", { ascending: false })
     .limit(50);
   if (error || !data) return null;
-  return data.map((d) => ({
-    username: d.username,
-    city: d.city,
-    wins: d.wins,
-    accuracy: d.accuracy,
-    rating: d.rating,
-    updatedAt: new Date(d.updated_at).getTime(),
-  }));
+  return data
+    .filter((d) => d.username)
+    .map((d) => ({
+      username: d.username as string,
+      city: (d.city as string | null) ?? "Unknown",
+      wins: (d.wins as number | null) ?? 0,
+      accuracy: (d.accuracy as number | null) ?? 0,
+      rating: (d.rating as number | null) ?? 1000,
+      updatedAt: d.updated_at ? new Date(d.updated_at as string).getTime() : 0,
+    }));
+}
+
+export async function fetchCloudCities(): Promise<string[] | null> {
+  if (!supabaseEnabled()) return null;
+  const sb = getSupabase();
+  if (!sb) return null;
+  const { data, error } = await sb
+    .from("profiles")
+    .select("city")
+    .not("city", "is", null)
+    .not("username", "is", null);
+  if (error || !data) return null;
+  const set = new Set<string>();
+  for (const row of data) {
+    const c = (row.city as string | null)?.trim();
+    if (c) set.add(c);
+  }
+  return Array.from(set).sort();
 }
 
 export async function fetchWeeklyLeaderboard(): Promise<WeeklyLeaderboardEntry[] | null> {

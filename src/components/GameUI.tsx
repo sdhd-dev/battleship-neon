@@ -20,14 +20,7 @@ import { Board } from "./Board";
 import { ShipPlacement } from "./ShipPlacement";
 import { CoachPanel } from "./CoachPanel";
 import { useAuth } from "./AuthProvider";
-import {
-  recordGame,
-  recordLocalLeaderboard,
-  recordWeeklyGame,
-  syncCloudLeaderboard,
-  syncCloudWeeklyLeaderboard,
-  loadStats,
-} from "@/lib/storage";
+import { recordGame, loadStats } from "@/lib/storage";
 import { supabaseEnabled } from "@/lib/supabase/client";
 import { createRoom, getCurrentPlayerId } from "@/lib/game/multiplayer";
 import { createTeamRoom, fetchTeamRoomByCode, joinTeamRoomByCode } from "@/lib/team-battle";
@@ -56,7 +49,6 @@ const DIFFICULTY_DESC: Record<Difficulty, { title: string; sub: string; color: s
 };
 
 export function GameUI({ onStatsUpdated }: GameUIProps) {
-  const { profile } = useAuth();
   const [phase, setPhase] = useState<Phase>("menu");
   const [difficulty, setDifficulty] = useState<Difficulty>("medium");
   const [mode, setMode] = useState<Mode>("classic");
@@ -140,11 +132,10 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
         shotsHit,
         durationMs,
       };
-      const { stats } = recordGame(loadStats(), record);
-      recordLocalLeaderboard(profile, stats);
-      syncCloudLeaderboard(profile, stats).catch(() => {});
-      const weekly = recordWeeklyGame(record);
-      syncCloudWeeklyLeaderboard(profile, weekly).catch(() => {});
+      // AI matches stay local: they award coins/XP but do not affect the
+      // weekly tournament or the cloud all-time leaderboard. Only PvP wins
+      // (1v1 online + 3v3 team battle) push to those.
+      recordGame(loadStats(), record);
 
       if (winningSide === "player") {
         const perfect = shotsFired > 0 && shotsHit === shotsFired;
@@ -175,7 +166,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
       setReport(r);
       setPhase("over");
     },
-    [aiBoard.ships, difficulty, mode, onStatsUpdated, playerBoard.shots, profile, shotsFired, shotsHit, startedAt]
+    [aiBoard.ships, difficulty, mode, onStatsUpdated, playerBoard.shots, shotsFired, shotsHit, startedAt]
   );
 
   // Auto-end blitz on timeout

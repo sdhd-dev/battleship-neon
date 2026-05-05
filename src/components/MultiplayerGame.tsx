@@ -156,52 +156,57 @@ export function MultiplayerGame({
     []
   );
 
-  const awardPvpWin = useCallback(async () => {
-    if (gameRecorded.current) return;
-    gameRecorded.current = true;
-    const myShotsFired = enemyShots.size;
-    const myShotsHit = Array.from(enemyShots.values()).filter(
-      (s) => s === "hit" || s === "sunk"
-    ).length;
-    const perfect = myShotsFired > 0 && myShotsHit === myShotsFired;
-    const startedAt = matchStartedAtRef.current || Date.now();
-    const record: GameRecord = {
-      id: `mp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      date: Date.now(),
-      result: "win",
-      difficulty: "medium",
-      mode: "classic",
-      shotsFired: myShotsFired,
-      shotsHit: myShotsHit,
-      durationMs: Date.now() - startedAt,
-    };
-    const profile = loadProfile();
-    const { stats } = recordGame(loadStats(), record);
-    recordLocalLeaderboard(profile, stats);
-    syncCloudLeaderboard(profile, stats).catch(() => {});
-    const weekly = recordWeeklyGame(record);
-    syncCloudWeeklyLeaderboard(profile, weekly).catch(() => {});
+  const recordPvpOutcome = useCallback(
+    async (won: boolean) => {
+      if (gameRecorded.current) return;
+      gameRecorded.current = true;
+      const myShotsFired = enemyShots.size;
+      const myShotsHit = Array.from(enemyShots.values()).filter(
+        (s) => s === "hit" || s === "sunk"
+      ).length;
+      const perfect = myShotsFired > 0 && myShotsHit === myShotsFired;
+      const startedAt = matchStartedAtRef.current || Date.now();
+      const record: GameRecord = {
+        id: `mp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        date: Date.now(),
+        result: won ? "win" : "loss",
+        difficulty: "medium",
+        mode: "classic",
+        shotsFired: myShotsFired,
+        shotsHit: myShotsHit,
+        durationMs: Date.now() - startedAt,
+      };
+      const profile = loadProfile();
+      const { stats } = recordGame(loadStats(), record);
+      recordLocalLeaderboard(profile, stats);
+      syncCloudLeaderboard(profile, stats).catch(() => {});
+      const weekly = recordWeeklyGame(record);
+      syncCloudWeeklyLeaderboard(profile, weekly).catch(() => {});
 
-    const opp = (opponentName || "").trim();
-    const eligible = opp ? await pvpRewardEligible(opp) : true;
-    if (!eligible) {
-      setRewardSkippedReason(
-        `Already paid out vs ${opp} today — only one PvP reward per opponent per day.`
-      );
-      return;
-    }
+      if (!won) return;
 
-    const rivalClan = opp ? await rivalClanBoost(opp) : false;
-    const result = applyWinReward({
-      mode: "classic",
-      perfect,
-      isPvp: true,
-      rivalClan,
-    });
-    if (opp) void recordPvpPayout(opp);
-    void bumpClanWin();
-    setRewardResult(result);
-  }, [enemyShots, opponentName]);
+      const opp = (opponentName || "").trim();
+      const eligible = opp ? await pvpRewardEligible(opp) : true;
+      if (!eligible) {
+        setRewardSkippedReason(
+          `Already paid out vs ${opp} today — only one PvP reward per opponent per day.`
+        );
+        return;
+      }
+
+      const rivalClan = opp ? await rivalClanBoost(opp) : false;
+      const result = applyWinReward({
+        mode: "classic",
+        perfect,
+        isPvp: true,
+        rivalClan,
+      });
+      if (opp) void recordPvpPayout(opp);
+      void bumpClanWin();
+      setRewardResult(result);
+    },
+    [enemyShots, opponentName]
+  );
 
   // ── Winner ───────────────────────────────────────────────────
   const declareWinner = useCallback(
@@ -212,16 +217,18 @@ export function MultiplayerGame({
       setWinReason(msg);
       setStage("over");
       setStatusMsg(msg);
+      const won = mySide === side;
       // Best-effort cleanup. Both clients can call these; second call is a no-op.
-      if (mySide === side) {
+      if (won) {
         setRoomStatus(roomId, "finished");
         clearMessages(roomId);
         setMessages([]);
-        // Record stats + weekly + apply reward (with PvP farming cap).
-        void awardPvpWin();
       }
+      // Both sides record the outcome — losses count toward the weekly
+      // tournament too (rating: −10 per loss, +25 per win, +10 perfect).
+      void recordPvpOutcome(won);
     },
-    [mySide, roomId, awardPvpWin]
+    [mySide, roomId, recordPvpOutcome]
   );
 
   // ── Room load / join ────────────────────────────────────────

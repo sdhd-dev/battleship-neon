@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import clsx from "clsx";
 import {
   LeaderboardEntry,
+  fetchCloudCities,
   fetchCloudLeaderboard,
   fetchWeeklyLeaderboard,
   loadLocalLeaderboard,
@@ -21,6 +22,7 @@ export function Leaderboard() {
   const [scope, setScope] = useState<Scope>("all");
   const [allEntries, setAllEntries] = useState<LeaderboardEntry[]>([]);
   const [weeklyEntries, setWeeklyEntries] = useState<LeaderboardEntry[]>([]);
+  const [cloudCities, setCloudCities] = useState<string[]>([]);
   const [city, setCity] = useState<string>("ALL");
   const [source, setSource] = useState<"local" | "cloud">("local");
   const [viralCreators, setViralCreators] = useState<Set<string>>(new Set());
@@ -40,6 +42,9 @@ export function Leaderboard() {
       fetchWeeklyLeaderboard().then((weekly) => {
         if (weekly) setWeeklyEntries(weekly);
       });
+      fetchCloudCities().then((cs) => {
+        if (cs) setCloudCities(cs);
+      });
       fetchViralCreators().then(setViralCreators).catch(() => {});
     }
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -57,9 +62,14 @@ export function Leaderboard() {
   }, [entries, cloudEnabled]);
 
   const cities = useMemo(() => {
-    const all = new Set<string>(entries.map((e) => e.city));
-    return ["ALL", ...Array.from(all).sort()];
-  }, [entries]);
+    // Union of distinct cities from cloud profiles + currently visible
+    // entries (covers local-only mode and freshly seeded weekly rows).
+    const set = new Set<string>();
+    for (const c of cloudCities) if (c) set.add(c);
+    for (const e of allEntries) if (e.city) set.add(e.city);
+    for (const e of weeklyEntries) if (e.city) set.add(e.city);
+    return ["ALL", ...Array.from(set).sort()];
+  }, [cloudCities, allEntries, weeklyEntries]);
 
   const filtered = city === "ALL" ? entries : entries.filter((e) => e.city === city);
 
@@ -174,9 +184,7 @@ export function Leaderboard() {
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-center py-6 text-fg-dim">
-                  {scope === "weekly"
-                    ? "No captains yet this week — be the first."
-                    : "No captains in this city yet — be the first."}
+                  No players yet — be the first!
                 </td>
               </tr>
             )}

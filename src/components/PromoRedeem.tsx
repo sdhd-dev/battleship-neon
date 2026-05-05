@@ -4,8 +4,9 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "./AuthProvider";
 import { redeemPromoCode } from "@/lib/promo";
-import { loadProfile, saveProfile } from "@/lib/storage";
+import { loadProfile } from "@/lib/storage";
 import { emitCoinGain } from "@/lib/economy";
+import { notify } from "@/lib/notify";
 
 interface SuccessState {
   coins: number;
@@ -45,9 +46,13 @@ export function PromoRedeem() {
       coins: (current.coins ?? 0) + result.rewardCoins,
       ownedCosmetics: Array.from(owned),
     };
-    saveProfile(next);
     setProfile(next);
-    if (result.rewardCoins > 0) emitCoinGain(result.rewardCoins, "promo");
+    if (result.rewardCoins > 0) {
+      emitCoinGain(result.rewardCoins, "promo");
+      notify(`⚓ +${result.rewardCoins.toLocaleString()} coins from promo code!`, "success");
+    } else if (result.rewardCosmetic) {
+      notify("✓ Cosmetic unlocked from promo code!", "success");
+    }
 
     setSuccess({
       coins: result.rewardCoins,

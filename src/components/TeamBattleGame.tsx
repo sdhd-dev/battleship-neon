@@ -41,11 +41,14 @@ import {
   loadStats,
   recordGame,
   recordLocalLeaderboard,
+  recordWeeklyGame,
   syncCloudLeaderboard,
+  syncCloudWeeklyLeaderboard,
 } from "@/lib/storage";
 import { ApplyRewardResult, applyWinReward } from "@/lib/economy";
 import { GameRecord } from "@/lib/game/types";
 import { RewardSummary } from "./RewardSummary";
+import { notify } from "@/lib/notify";
 
 interface TeamBattleGameProps {
   roomCode: string;
@@ -413,7 +416,7 @@ export function TeamBattleGame({
   const handleSwitchTeam = async (team: 1 | 2) => {
     if (!room) return;
     const res = await switchTeam(room.id, myPlayerId, team);
-    if (!res.ok) alert(res.error ?? "Could not switch teams.");
+    if (!res.ok) notify(res.error ?? "Could not switch teams.");
   };
 
   const sendChat = async () => {
@@ -470,6 +473,10 @@ export function TeamBattleGame({
     const { stats } = recordGame(loadStats(), record);
     recordLocalLeaderboard(profile, stats);
     syncCloudLeaderboard(profile, stats).catch(() => {});
+    // Team Battle counts toward the weekly tournament — sync win/loss
+    // and accuracy for both sides so the rating reflects the match.
+    const weekly = recordWeeklyGame(record);
+    syncCloudWeeklyLeaderboard(profile, weekly).catch(() => {});
 
     if (won) {
       const perfect =

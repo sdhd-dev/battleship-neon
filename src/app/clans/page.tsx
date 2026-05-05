@@ -16,6 +16,7 @@ import {
   leaveClan,
   listClans,
 } from "@/lib/clans";
+import { notify } from "@/lib/notify";
 
 const COLOR_PRESETS = ["#00f0ff", "#ff2bd6", "#7c5cff", "#fbbf24", "#22d3ee", "#84cc16", "#ef4444"];
 const EMBLEMS = ["⚓", "⚔", "⚡", "☠", "🛡", "🔥", "🎯", "🌊", "🦈"];
@@ -58,7 +59,7 @@ export default function ClansPage() {
     if (res.ok) {
       router.push(`/clans/${clanId}`);
     } else {
-      alert(res.error ?? "Could not join clan.");
+      notify(res.error ?? "Could not join clan.");
     }
   };
 
@@ -66,7 +67,7 @@ export default function ClansPage() {
     if (!confirm("Leave your current clan?")) return;
     const res = await leaveClan();
     if (res.ok) await refresh();
-    else alert(res.error ?? "Could not leave clan.");
+    else notify(res.error ?? "Could not leave clan.");
   };
 
   return (
