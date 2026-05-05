@@ -480,9 +480,26 @@ export default function ClanProfilePage({
               </div>
             )}
 
-            {canManageBank && (
-              <div className="rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4 grid gap-3">
-                <div className="flex items-center justify-between gap-2">
+            {canManageBank && (() => {
+              const memberCount = Math.max(1, members.length);
+              const maxPerMember = Math.floor(clan.bank_coins / memberCount);
+              const bankEmpty = clan.bank_coins <= 0;
+              const distributeDisabled =
+                bankEmpty ||
+                distAmount < 1 ||
+                distAmount > maxPerMember;
+              const withdrawDisabled =
+                bankEmpty ||
+                withdrawAmount < 1 ||
+                withdrawAmount > clan.bank_coins;
+              const sendDisabled =
+                bankEmpty ||
+                !memberSendTarget ||
+                memberSendAmount < 1 ||
+                memberSendAmount > clan.bank_coins;
+              return (
+                <div className="rounded-2xl border border-amber-300/30 bg-amber-300/5 p-3 sm:p-4 grid gap-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="text-[10px] uppercase tracking-[0.3em] text-amber-200">
                     Clan Treasury · {myRole === "leader" ? "Leader" : "Officer"}
                   </div>
@@ -491,8 +508,8 @@ export default function ClanProfilePage({
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-white/10 bg-black/30 p-3 grid gap-2">
+                <div className="flex flex-col md:flex-row gap-3">
+                  <div className="flex-1 min-w-0 rounded-xl border border-white/10 bg-black/30 p-3 grid gap-2">
                     <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
                       Distribute to all
                     </div>
@@ -500,15 +517,17 @@ export default function ClanProfilePage({
                       <input
                         type="number"
                         min={1}
+                        max={maxPerMember || undefined}
                         value={distAmount}
                         onChange={(e) =>
                           setDistAmount(Math.max(1, +e.target.value || 0))
                         }
-                        className="flex-1 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
+                        className="flex-1 min-w-0 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
                       />
                       <button
                         onClick={handleDistribute}
-                        className="neon-btn rounded-lg px-4 py-2 text-sm font-semibold"
+                        disabled={distributeDisabled}
+                        className="neon-btn rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Pay each
                       </button>
@@ -516,10 +535,13 @@ export default function ClanProfilePage({
                     <div className="text-[11px] text-fg-dim">
                       ⚓ {distAmount} × {members.length} members = ⚓{" "}
                       {(distAmount * members.length).toLocaleString()}
+                      {maxPerMember > 0 && (
+                        <span className="block">Max ⚓ {maxPerMember.toLocaleString()} / member</span>
+                      )}
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-white/10 bg-black/30 p-3 grid gap-2">
+                  <div className="flex-1 min-w-0 rounded-xl border border-white/10 bg-black/30 p-3 grid gap-2">
                     <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
                       Withdraw to me
                     </div>
@@ -527,15 +549,16 @@ export default function ClanProfilePage({
                       <input
                         type="number"
                         min={1}
+                        max={clan.bank_coins || undefined}
                         value={withdrawAmount}
                         onChange={(e) =>
                           setWithdrawAmount(Math.max(1, +e.target.value || 0))
                         }
-                        className="flex-1 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
+                        className="flex-1 min-w-0 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
                       />
                       <button
                         onClick={handleWithdraw}
-                        disabled={withdrawAmount > clan.bank_coins}
+                        disabled={withdrawDisabled}
                         className="neon-btn rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Withdraw
@@ -551,11 +574,11 @@ export default function ClanProfilePage({
                   <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
                     Distribute to member
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <select
                       value={memberSendTarget}
                       onChange={(e) => setMemberSendTarget(e.target.value)}
-                      className="flex-1 min-w-[140px] rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm"
+                      className="flex-1 min-w-0 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm"
                     >
                       <option value="">Pick member…</option>
                       {members.map((m) => (
@@ -565,33 +588,34 @@ export default function ClanProfilePage({
                         </option>
                       ))}
                     </select>
-                    <input
-                      type="number"
-                      min={1}
-                      value={memberSendAmount}
-                      onChange={(e) =>
-                        setMemberSendAmount(Math.max(1, +e.target.value || 0))
-                      }
-                      className="w-32 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
-                    />
-                    <button
-                      onClick={handleSendToMember}
-                      disabled={
-                        !memberSendTarget ||
-                        memberSendAmount > clan.bank_coins
-                      }
-                      className="neon-btn rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Send ⚓
-                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        max={clan.bank_coins || undefined}
+                        value={memberSendAmount}
+                        onChange={(e) =>
+                          setMemberSendAmount(Math.max(1, +e.target.value || 0))
+                        }
+                        className="flex-1 sm:w-32 sm:flex-none min-w-0 rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm tabular-nums"
+                      />
+                      <button
+                        onClick={handleSendToMember}
+                        disabled={sendDisabled}
+                        className="neon-btn rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        Send ⚓
+                      </button>
+                    </div>
                   </div>
                   <div className="text-[11px] text-fg-dim">
                     Pay a single member from the bank — useful for rewarding
                     individual contributions.
                   </div>
                 </div>
-              </div>
-            )}
+                </div>
+              );
+            })()}
 
             {actionMsg && (
               <div className="rounded-xl px-3 py-2 text-xs text-fg-dim border border-white/10 bg-black/30">

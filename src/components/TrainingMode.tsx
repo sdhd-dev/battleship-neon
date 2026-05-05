@@ -14,9 +14,11 @@ import { applyAttack } from "@/lib/game/board";
 import { grantCoins } from "@/lib/economy";
 import { loadProfile, saveProfile, syncCloudProfile } from "@/lib/storage";
 import { GRADUATE_BADGE_ID } from "@/lib/shop-catalog";
+import { notify } from "@/lib/notify";
 
 const TOTAL_STEPS = 5;
 const REWARD_COINS = 25;
+const TRAINING_COMPLETED_KEY = "bs.training.completed";
 
 interface TrainingModeProps {
   onExit: (completed: boolean, rewarded: boolean) => void;
@@ -161,23 +163,36 @@ export function TrainingMode({ onExit }: TrainingModeProps) {
 
   useEffect(() => {
     if (step !== 5 || completed) return;
+    if (typeof window === "undefined") return;
+
     const profile = loadProfile();
     const alreadyGraduated = (profile.ownedCosmetics ?? []).includes(
       GRADUATE_BADGE_ID
     );
-    if (!alreadyGraduated) {
+    const flagged = localStorage.getItem(TRAINING_COMPLETED_KEY) === "1";
+
+    if (!alreadyGraduated && !flagged) {
+      // grantCoins reads → mutates → saves localStorage. Re-load AFTER it so
+      // the badge save below doesn't clobber the +25 with a stale snapshot.
       grantCoins(REWARD_COINS, "Training Mode");
-      const owned = new Set(profile.ownedCosmetics ?? []);
+      const fresh = loadProfile();
+      const owned = new Set(fresh.ownedCosmetics ?? []);
       owned.add(GRADUATE_BADGE_ID);
       const next = {
-        ...profile,
+        ...fresh,
         ownedCosmetics: Array.from(owned),
-        activeBadge: profile.activeBadge ?? GRADUATE_BADGE_ID,
+        activeBadge: fresh.activeBadge ?? GRADUATE_BADGE_ID,
       };
       saveProfile(next);
       void syncCloudProfile(next);
+      localStorage.setItem(TRAINING_COMPLETED_KEY, "1");
+      notify(`🎓 +${REWARD_COINS} coins earned for completing training!`, "success");
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setRewarded(true);
+    } else {
+      // Backfill the flag for users who graduated before we tracked it, so
+      // future runs short-circuit on the cheap localStorage check.
+      localStorage.setItem(TRAINING_COMPLETED_KEY, "1");
     }
     setCompleted(true);
   }, [step, completed]);

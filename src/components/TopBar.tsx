@@ -32,9 +32,19 @@ export function TopBar({ onUpgrade }: TopBarProps) {
   const [linkCopied, setLinkCopied] = useState(false);
   const authRef = useRef<HTMLDivElement>(null);
 
-  const coins = profile.coins ?? 0;
-  const xp = profile.xp ?? 0;
-  const level = profile.level ?? 1;
+  // Profile is hydrated from localStorage in a useEffect inside AuthProvider,
+  // which means the very first render uses the SSR default (zeros). Until we
+  // mount on the client, render placeholder zeros so server/client markup
+  // matches and avoid flashing stale numbers from the default profile.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
+
+  const coins = mounted ? profile.coins ?? 0 : 0;
+  const xp = mounted ? profile.xp ?? 0 : 0;
+  const level = mounted ? profile.level ?? 1 : 1;
   const title = titleForLevel(level);
   const progress = progressInLevel(xp, level);
   const toNext = xpToNext(xp, level);
@@ -137,6 +147,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         {/* Coin balance — desktop only; mobile users see coins in profile dropdown */}
         <Link
           href="/shop"
+          suppressHydrationWarning
           className="hidden sm:inline-flex items-center gap-2 rounded-xl px-3 py-2 border border-amber-300/40 bg-amber-300/10 hover:bg-amber-300/20 transition-colors"
           aria-label="Open shop"
         >
@@ -218,13 +229,13 @@ export function TopBar({ onUpgrade }: TopBarProps) {
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2">
                       <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">Rank</div>
-                      <div className="text-sm font-bold" style={{ color: "var(--accent)" }}>
+                      <div suppressHydrationWarning className="text-sm font-bold" style={{ color: "var(--accent)" }}>
                         Lv {level} · {title}
                       </div>
                     </div>
                     <div className="rounded-lg border border-amber-300/40 bg-amber-300/10 px-3 py-2">
                       <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">Coins</div>
-                      <div className="text-sm font-bold" style={{ color: "#fbbf24" }}>
+                      <div suppressHydrationWarning className="text-sm font-bold" style={{ color: "#fbbf24" }}>
                         ⚓ {coins.toLocaleString()}
                       </div>
                     </div>
