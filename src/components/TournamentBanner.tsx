@@ -16,7 +16,7 @@ export function TournamentBanner() {
     <motion.div
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass neon-border rounded-2xl sm:rounded-3xl p-3 sm:p-5 flex flex-wrap items-center gap-3 sm:gap-4 relative overflow-hidden"
+      className="glass neon-border rounded-2xl sm:rounded-3xl p-3 sm:p-5 flex flex-wrap items-center gap-3 sm:gap-4 relative overflow-hidden min-w-0 max-w-full"
     >
       <motion.div
         aria-hidden
@@ -36,8 +36,8 @@ export function TournamentBanner() {
           🏆 Top 3 this week win real prizes from the creator
         </div>
       </div>
-      <div className="relative z-10 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-1.5 sm:py-2 border border-amber-300/40 bg-amber-300/10">
-        <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
+      <div className="relative z-10 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-1.5 sm:py-2 border border-amber-300/40 bg-amber-300/10 min-w-0 max-w-full">
+        <div className="text-[10px] uppercase tracking-[0.15em] sm:tracking-[0.3em] text-fg-dim">
           Resets Monday 00:00 UTC
         </div>
         <div

@@ -439,7 +439,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0 max-w-full">
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -462,11 +462,11 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="grid gap-6"
+            className="grid grid-cols-[minmax(0,1fr)] gap-6"
           >
             <Hero />
             <TipOfTheDay />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+            <div className="grid grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-stretch">
               <TrainingCard onPick={() => setPhase("training")} />
               <SecretWordCard onPick={handleStartSecretWord} />
               <PlayOnlineCard />
@@ -744,7 +744,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
 
 function Hero() {
   return (
-    <div className="glass neon-border rounded-2xl sm:rounded-3xl p-5 sm:p-10 relative overflow-hidden">
+    <div className="glass neon-border rounded-2xl sm:rounded-3xl p-5 sm:p-10 relative overflow-hidden min-w-0 max-w-full">
       <motion.div
         className="absolute -top-32 -right-32 w-96 h-96 rounded-full"
         style={{ background: "radial-gradient(circle, color-mix(in oklab, var(--accent-2) 35%, transparent), transparent 70%)" }}
@@ -759,7 +759,7 @@ function Hero() {
       />
       <div className="relative z-10 max-w-2xl">
         <div className="text-[10px] sm:text-xs uppercase tracking-[0.4em] text-fg-dim">Mission Control</div>
-        <h1 className="text-3xl sm:text-6xl font-extrabold leading-tight sm:leading-none mt-2 title-grad break-words">Sink. Hunt. Conquer.</h1>
+        <h1 className="text-2xl sm:text-6xl font-extrabold leading-tight sm:leading-none mt-2 title-grad break-words">Sink. Hunt. Conquer.</h1>
         <p className="text-fg-dim mt-3 text-sm sm:text-lg max-w-xl break-words">
           A modern Battleship arena with three AI commanders, a 3-minute blitz, and an after-action coach that scores your strategy.
         </p>
