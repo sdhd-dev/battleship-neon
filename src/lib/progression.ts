@@ -67,6 +67,7 @@ export interface RewardContext {
   perfect: boolean;
   dailyFirstWin: boolean;
   isPvp?: boolean;
+  rivalClan?: boolean; // PvP win against a member of a different clan
 }
 
 export interface Reward {
@@ -108,6 +109,13 @@ export function calcWinReward(ctx: RewardContext): Reward {
     breakdown.push({ label: "Daily first win", coins: 15 });
   }
 
-  const totalCoins = base + bonus;
+  const subtotal = base + bonus;
+  let totalCoins = subtotal;
+  if (ctx.rivalClan && ctx.isPvp) {
+    const clanBonus = Math.round(subtotal * 0.2);
+    bonus += clanBonus;
+    totalCoins = subtotal + clanBonus;
+    breakdown.push({ label: "Rival clan +20%", coins: clanBonus });
+  }
   return { baseCoins: base, bonusCoins: bonus, totalCoins, xp: totalCoins, breakdown };
 }

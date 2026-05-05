@@ -7,6 +7,7 @@ import clsx from "clsx";
 import { TopBar } from "@/components/TopBar";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useAuth } from "@/components/AuthProvider";
+import { PromoRedeem } from "@/components/PromoRedeem";
 import {
   BOARD_THEMES,
   PROFILE_BADGES,
@@ -91,6 +92,8 @@ export default function ShopPage() {
             </div>
           </div>
         </div>
+
+        <PromoRedeem />
 
         <Tabs tab={tab} setTab={setTab} />
 

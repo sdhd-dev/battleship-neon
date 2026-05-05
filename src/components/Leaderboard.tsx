@@ -10,7 +10,9 @@ import {
   loadLocalLeaderboard,
 } from "@/lib/storage";
 import { fetchViralCreators } from "@/lib/social";
+import { ClanRow, fetchClansByUsernames } from "@/lib/clans";
 import { useAuth } from "./AuthProvider";
+import { ClanTag } from "./ClanTag";
 
 type Scope = "all" | "weekly";
 
@@ -22,6 +24,7 @@ export function Leaderboard() {
   const [city, setCity] = useState<string>("ALL");
   const [source, setSource] = useState<"local" | "cloud">("local");
   const [viralCreators, setViralCreators] = useState<Set<string>>(new Set());
+  const [clansByUser, setClansByUser] = useState<Map<string, ClanRow>>(new Map());
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -43,6 +46,15 @@ export function Leaderboard() {
   }, [cloudEnabled]);
 
   const entries = scope === "all" ? allEntries : weeklyEntries;
+
+  useEffect(() => {
+    if (!cloudEnabled) return;
+    if (entries.length === 0) return;
+    const usernames = entries.slice(0, 50).map((e) => e.username);
+    fetchClansByUsernames(usernames)
+      .then((m) => setClansByUser(m))
+      .catch(() => {});
+  }, [entries, cloudEnabled]);
 
   const cities = useMemo(() => {
     const all = new Set<string>(entries.map((e) => e.city));
@@ -145,6 +157,11 @@ export function Leaderboard() {
                       </span>
                     )}
                     {e.username}
+                    {clansByUser.get(e.username.toLowerCase()) && (
+                      <span className="ml-1.5 align-middle">
+                        <ClanTag clan={clansByUser.get(e.username.toLowerCase())} />
+                      </span>
+                    )}
                     {isYou && <span className="ml-2 text-[10px] uppercase tracking-wider text-accent">You</span>}
                   </td>
                   <td className="py-2 pr-2 text-fg-dim truncate max-w-[120px]">{e.city}</td>

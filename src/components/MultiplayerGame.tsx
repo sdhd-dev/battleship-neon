@@ -45,6 +45,8 @@ import {
   pvpRewardEligible,
   recordPvpPayout,
 } from "@/lib/economy";
+import { bumpClanWin, rivalClanBoost } from "@/lib/clans";
+import { ClanTag } from "./ClanTag";
 import { GameRecord } from "@/lib/game/types";
 import { RewardSummary } from "./RewardSummary";
 
@@ -189,12 +191,15 @@ export function MultiplayerGame({
       return;
     }
 
+    const rivalClan = opp ? await rivalClanBoost(opp) : false;
     const result = applyWinReward({
       mode: "classic",
       perfect,
       isPvp: true,
+      rivalClan,
     });
     if (opp) void recordPvpPayout(opp);
+    void bumpClanWin();
     setRewardResult(result);
   }, [enemyShots, opponentName]);
 
@@ -804,8 +809,9 @@ function Banner({
                   : "bg-red-400 shadow-[0_0_8px_rgb(248,113,113)]"
             )}
           />
-          <span className="font-bold truncate max-w-[160px]">
+          <span className="font-bold truncate max-w-[160px] inline-flex items-center gap-1.5">
             {opponentJoined ? opponentName : "Waiting…"}
+            {opponentJoined && <ClanTag username={opponentName} fetch />}
           </span>
         </div>
       </div>

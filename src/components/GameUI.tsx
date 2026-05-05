@@ -30,6 +30,7 @@ import {
 } from "@/lib/storage";
 import { supabaseEnabled } from "@/lib/supabase/client";
 import { createRoom, getCurrentPlayerId } from "@/lib/game/multiplayer";
+import { createTeamRoom, fetchTeamRoomByCode, joinTeamRoomByCode } from "@/lib/team-battle";
 import { applyWinReward, ApplyRewardResult } from "@/lib/economy";
 import { RewardSummary } from "./RewardSummary";
 import { TrainingMode } from "./TrainingMode";
@@ -285,6 +286,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
             <div className="grid sm:grid-cols-2 gap-4 items-stretch">
               <TrainingCard onPick={() => setPhase("training")} />
               <PlayOnlineCard />
+              <TeamBattleCard />
               <ModeCard
                 title="Classic"
                 tag="No timer · vs AI"
@@ -626,6 +628,126 @@ function ShipStatus({ title, ships, reveal }: { title: string; ships: Ship[]; re
 
 function labelOf(r: number, c: number) {
   return `${"ABCDEFGHIJ"[c]}${r + 1}`;
+}
+
+function TeamBattleCard() {
+  const router = useRouter();
+  const { profile } = useAuth();
+  const cloud = supabaseEnabled();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [joinCode, setJoinCode] = useState("");
+  const [joining, setJoining] = useState(false);
+
+  const onCreate = async () => {
+    if (!cloud) {
+      setError("Team Battle requires Supabase env vars.");
+      return;
+    }
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const id = await getCurrentPlayerId();
+    const room = await createTeamRoom(id, profile.username || "Captain");
+    if (!room) {
+      setError("Could not create room. Run supabase/team_battle.sql first.");
+      setBusy(false);
+      return;
+    }
+    router.push(`/team-room/${room.room_code}`);
+  };
+
+  const onJoin = async () => {
+    if (!cloud) {
+      setError("Team Battle requires Supabase env vars.");
+      return;
+    }
+    const code = joinCode.trim().toUpperCase();
+    if (!code) return;
+    setJoining(true);
+    setError(null);
+    const room = await fetchTeamRoomByCode(code);
+    if (!room) {
+      setError("Room not found.");
+      setJoining(false);
+      return;
+    }
+    const id = await getCurrentPlayerId();
+    const res = await joinTeamRoomByCode(code, id, profile.username || "Captain");
+    setJoining(false);
+    if (!res.ok || !res.room) {
+      setError(res.error ?? "Could not join.");
+      return;
+    }
+    router.push(`/team-room/${res.room.room_code}`);
+  };
+
+  return (
+    <div className="glass neon-border rounded-3xl p-6 relative overflow-hidden h-full flex">
+      <div
+        className="absolute -top-16 -left-16 w-48 h-48 rounded-full pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(circle, color-mix(in oklab, var(--accent-3) 35%, transparent), transparent 70%)",
+        }}
+      />
+      <div className="relative z-10 flex flex-col flex-1 gap-2 min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
+          New mode · Squad
+        </div>
+        <h3 className="text-3xl font-extrabold neon-text flex items-center gap-2">
+          <span className="text-3xl">⚔️</span> Team Battle 3v3
+        </h3>
+        <p className="text-fg-dim text-sm">
+          Form a six-player lobby. Three vs three boards, alternating fire.
+          Wipe the enemy fleet to win.
+        </p>
+
+        <div className="grid gap-2 mt-3">
+          <button
+            onClick={onCreate}
+            disabled={!cloud || busy}
+            className={clsx(
+              "rounded-xl px-3 py-2.5 text-sm font-semibold border",
+              cloud && !busy
+                ? "neon-btn"
+                : "border-white/15 bg-white/5 text-fg-dim cursor-not-allowed"
+            )}
+          >
+            {busy ? "Creating room…" : "Create Team Room →"}
+          </button>
+          <div className="flex gap-2">
+            <input
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 8))}
+              placeholder="ENTER CODE"
+              maxLength={8}
+              disabled={!cloud}
+              className="flex-1 rounded-xl bg-black/40 border border-white/15 px-3 py-2 text-sm font-mono tracking-[0.2em]"
+            />
+            <button
+              onClick={onJoin}
+              disabled={!cloud || joining || !joinCode.trim()}
+              className={clsx(
+                "rounded-xl px-4 py-2 text-sm font-semibold whitespace-nowrap",
+                cloud && joinCode.trim()
+                  ? "neon-btn"
+                  : "border border-white/15 text-fg-dim cursor-not-allowed"
+              )}
+            >
+              {joining ? "Joining…" : "Join"}
+            </button>
+          </div>
+          {error && <p className="text-xs text-red-300">{error}</p>}
+          {!cloud && (
+            <p className="text-[11px] text-fg-dim">
+              Configure Supabase env vars to enable.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function PlayOnlineCard() {

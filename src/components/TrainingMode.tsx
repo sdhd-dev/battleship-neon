@@ -176,9 +176,9 @@ export function TrainingMode({ onExit }: TrainingModeProps) {
       };
       saveProfile(next);
       void syncCloudProfile(next);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRewarded(true);
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCompleted(true);
   }, [step, completed]);
 

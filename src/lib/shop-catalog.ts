@@ -108,6 +108,15 @@ export const PROFILE_BADGES: BadgeItem[] = [
   { id: "veteran", kind: "badge", name: "Veteran", price: 75, emoji: "⚓" },
   { id: "streak", kind: "badge", name: "Hot Streak", price: 75, emoji: "🔥" },
   { id: "defender", kind: "badge", name: "Defender", price: 75, emoji: "🛡" },
+  {
+    id: "admiral",
+    kind: "badge",
+    name: "Admiral",
+    price: 0,
+    emoji: "🎖",
+    earnedOnly: true,
+    hint: "Unlocked by promo code",
+  },
 ];
 
 export function findItem(id: string): ShopItem | undefined {

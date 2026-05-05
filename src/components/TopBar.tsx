@@ -13,6 +13,7 @@ import {
   xpToNext,
 } from "@/lib/progression";
 import { buildInviteUrl, fetchReferralStats } from "@/lib/referrals";
+import { ClanTag } from "./ClanTag";
 
 interface TopBarProps {
   onUpgrade: () => void;
@@ -149,6 +150,14 @@ export function TopBar({ onUpgrade }: TopBarProps) {
           </span>
         </Link>
 
+        <Link
+          href="/clans"
+          className="hidden sm:inline-flex items-center gap-1 rounded-xl px-3 py-2 border border-white/15 hover:bg-white/5 text-sm font-semibold"
+          aria-label="Clans"
+        >
+          <span>⚑</span>
+          <span>Clans</span>
+        </Link>
         <button
           onClick={onUpgrade}
           suppressHydrationWarning
@@ -178,6 +187,9 @@ export function TopBar({ onUpgrade }: TopBarProps) {
             <span suppressHydrationWarning className="hidden sm:inline">
               {signedIn ? profile.username : "Sign in"}
             </span>
+            {signedIn && (
+              <ClanTag username={username} fetch />
+            )}
           </button>
           {authOpen && (
             <motion.div
