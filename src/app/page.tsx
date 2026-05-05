@@ -9,6 +9,7 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { TournamentBanner } from "@/components/TournamentBanner";
 import { SocialPanel } from "@/components/SocialPanel";
 import { ArsenalPanel } from "@/components/ArsenalPanel";
+import { MobilePanels } from "@/components/MobilePanels";
 import { GameRecord, PlayerStats } from "@/lib/game/types";
 import {
   clearHistory,
@@ -49,8 +50,25 @@ export default function Home() {
         <section className="min-w-0 grid grid-cols-[minmax(0,1fr)] gap-5">
           <TournamentBanner />
           <GameUI onStatsUpdated={refresh} />
+          <MobilePanels
+            stats={stats}
+            history={history}
+            onDeleteEntry={handleDeleteEntry}
+            onClearAll={handleClearAll}
+          />
+          <div className="lg:hidden grid gap-3">
+            <button
+              onClick={() => setUpgradeOpen(true)}
+              className="neon-btn rounded-2xl px-4 py-3 font-semibold pulse-glow"
+            >
+              ✦ Upgrade to Pro · Unlock Skins
+            </button>
+            <div className="text-[11px] text-fg-dim text-center leading-relaxed pb-2">
+              Built with Next.js · Tailwind · Framer Motion · Supabase.
+            </div>
+          </div>
         </section>
-        <aside className="grid gap-5 content-start lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
+        <aside className="hidden lg:grid gap-5 content-start lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
           <StatsPanel
             stats={stats}
             history={history}

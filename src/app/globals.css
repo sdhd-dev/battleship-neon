@@ -348,3 +348,12 @@ html[data-theme="light"] {
     transform: rotate(360deg);
   }
 }
+
+/* Hide scrollbar but keep scroll behaviour (used for mobile tab carousel) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
