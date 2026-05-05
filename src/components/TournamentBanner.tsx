@@ -16,7 +16,7 @@ export function TournamentBanner() {
     <motion.div
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass neon-border rounded-3xl p-4 sm:p-5 flex flex-wrap items-center gap-4 relative overflow-hidden"
+      className="glass neon-border rounded-2xl sm:rounded-3xl p-3 sm:p-5 flex flex-wrap items-center gap-3 sm:gap-4 relative overflow-hidden"
     >
       <motion.div
         aria-hidden
@@ -28,21 +28,21 @@ export function TournamentBanner() {
         animate={{ scale: [1, 1.15, 1] }}
         transition={{ duration: 5, repeat: Infinity }}
       />
-      <div className="relative z-10 flex-1 min-w-[220px]">
+      <div className="relative z-10 flex-1 min-w-0 sm:min-w-[220px]">
         <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
           Weekly Tournament
         </div>
-        <div className="text-base sm:text-lg font-bold leading-snug">
+        <div className="text-sm sm:text-lg font-bold leading-snug break-words">
           🏆 Top 3 this week win real prizes from the creator
         </div>
       </div>
-      <div className="relative z-10 rounded-2xl px-4 py-2 border border-amber-300/40 bg-amber-300/10">
+      <div className="relative z-10 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-1.5 sm:py-2 border border-amber-300/40 bg-amber-300/10">
         <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
           Resets Monday 00:00 UTC
         </div>
         <div
           suppressHydrationWarning
-          className="font-mono font-extrabold text-lg sm:text-xl tabular-nums"
+          className="font-mono font-extrabold text-base sm:text-xl tabular-nums"
           style={{
             color: "#fbbf24",
             textShadow: "0 0 12px #fbbf24",

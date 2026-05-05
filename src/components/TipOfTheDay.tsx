@@ -79,7 +79,7 @@ export function TipOfTheDay() {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass rounded-3xl p-4 sm:p-5 flex items-start gap-4 relative overflow-hidden"
+      className="glass rounded-3xl p-4 sm:p-5 flex items-start gap-3 sm:gap-4 relative overflow-hidden w-full max-w-full"
     >
       <div
         aria-hidden
@@ -89,13 +89,13 @@ export function TipOfTheDay() {
             "radial-gradient(circle, color-mix(in oklab, var(--accent-3) 35%, transparent), transparent 70%)",
         }}
       />
-      <div className="relative z-10 text-4xl">{tip.emoji}</div>
-      <div className="relative z-10 min-w-0">
+      <div className="relative z-10 text-3xl sm:text-4xl shrink-0">{tip.emoji}</div>
+      <div className="relative z-10 min-w-0 flex-1">
         <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
           Tip of the day
         </div>
-        <div className="font-extrabold text-lg neon-text mt-1">{tip.title}</div>
-        <p className="text-sm text-fg-dim mt-1 leading-relaxed">{tip.body}</p>
+        <div className="font-extrabold text-base sm:text-lg neon-text mt-1 break-words">{tip.title}</div>
+        <p className="text-sm text-fg-dim mt-1 leading-relaxed break-words">{tip.body}</p>
       </div>
     </motion.div>
   );

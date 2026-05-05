@@ -274,7 +274,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
           >
             <Hero />
             <TipOfTheDay />
-            <div className="grid sm:grid-cols-2 gap-4 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
               <TrainingCard onPick={() => setPhase("training")} />
               <PlayOnlineCard />
               <TeamBattleCard />
@@ -403,7 +403,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
 
 function Hero() {
   return (
-    <div className="glass neon-border rounded-3xl p-6 sm:p-10 relative overflow-hidden">
+    <div className="glass neon-border rounded-2xl sm:rounded-3xl p-5 sm:p-10 relative overflow-hidden">
       <motion.div
         className="absolute -top-32 -right-32 w-96 h-96 rounded-full"
         style={{ background: "radial-gradient(circle, color-mix(in oklab, var(--accent-2) 35%, transparent), transparent 70%)" }}
@@ -417,9 +417,9 @@ function Hero() {
         transition={{ duration: 16, repeat: Infinity }}
       />
       <div className="relative z-10 max-w-2xl">
-        <div className="text-xs uppercase tracking-[0.4em] text-fg-dim">Mission Control</div>
-        <h1 className="text-4xl sm:text-6xl font-extrabold leading-none mt-2 title-grad">Sink. Hunt. Conquer.</h1>
-        <p className="text-fg-dim mt-3 text-base sm:text-lg max-w-xl">
+        <div className="text-[10px] sm:text-xs uppercase tracking-[0.4em] text-fg-dim">Mission Control</div>
+        <h1 className="text-3xl sm:text-6xl font-extrabold leading-tight sm:leading-none mt-2 title-grad break-words">Sink. Hunt. Conquer.</h1>
+        <p className="text-fg-dim mt-3 text-sm sm:text-lg max-w-xl break-words">
           A modern Battleship arena with three AI commanders, a 3-minute blitz, and an after-action coach that scores your strategy.
         </p>
       </div>
@@ -433,17 +433,17 @@ function TrainingCard({ onPick }: { onPick: () => void }) {
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.98 }}
       onClick={onPick}
-      className="glass rounded-3xl p-6 relative overflow-hidden text-left group h-full flex"
+      className="glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 relative overflow-hidden text-left group h-full flex w-full min-h-[44px]"
     >
       <div className="absolute inset-0 bg-gradient-to-br from-amber-300/20 via-accent/20 to-transparent pointer-events-none opacity-70" />
-      <div className="relative z-10 flex flex-col flex-1 gap-2">
+      <div className="relative z-10 flex flex-col flex-1 gap-2 min-w-0">
         <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
           New here?
         </div>
-        <h3 className="text-3xl font-extrabold neon-text flex items-center gap-2">
-          <span className="text-3xl">🎓</span> Training
+        <h3 className="text-2xl sm:text-3xl font-extrabold neon-text flex items-center gap-2 break-words">
+          <span className="text-2xl sm:text-3xl">🎓</span> Training
         </h3>
-        <p className="text-fg-dim text-sm">
+        <p className="text-fg-dim text-sm break-words">
           A 5-step interactive tutorial — placement, shooting, hunt strategy. Earn the Graduate badge.
         </p>
         <div className="mt-auto pt-3">
@@ -470,12 +470,12 @@ function ModeCard({
   onPick: (d: Difficulty) => void;
 }) {
   return (
-    <div className="glass rounded-3xl p-6 relative overflow-hidden h-full flex">
+    <div className="glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 relative overflow-hidden h-full flex w-full">
       <div className={`absolute inset-0 bg-gradient-to-br ${gradient} pointer-events-none opacity-60`} />
       <div className="relative z-10 flex flex-col flex-1 min-w-0">
         <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">{tag}</div>
-        <h3 className="text-3xl font-extrabold neon-text">{title}</h3>
-        <p className="text-fg-dim text-sm mt-1">{desc}</p>
+        <h3 className="text-2xl sm:text-3xl font-extrabold neon-text break-words">{title}</h3>
+        <p className="text-fg-dim text-sm mt-1 break-words">{desc}</p>
         <div className="grid gap-2 mt-4">
           {(["easy", "medium", "hard"] as Difficulty[]).map((d) => (
             <motion.button
@@ -483,7 +483,7 @@ function ModeCard({
               whileHover={{ y: -1, x: 2 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => onPick(d)}
-              className="rounded-xl border border-white/10 hover:border-white/30 px-3 py-2.5 text-left bg-black/20 flex items-center gap-3"
+              className="rounded-xl border border-white/10 hover:border-white/30 px-3 py-2.5 text-left bg-black/20 flex items-center gap-3 min-h-[44px]"
             >
               <div className="shrink-0 w-[88px]">
                 <div className="text-[9px] uppercase tracking-[0.3em] text-fg-dim leading-tight">{d}</div>
@@ -674,7 +674,7 @@ function TeamBattleCard() {
   };
 
   return (
-    <div className="glass neon-border rounded-3xl p-6 relative overflow-hidden h-full flex">
+    <div className="glass neon-border rounded-2xl sm:rounded-3xl p-5 sm:p-6 relative overflow-hidden h-full flex w-full">
       <div
         className="absolute -top-16 -left-16 w-48 h-48 rounded-full pointer-events-none"
         style={{
@@ -686,10 +686,10 @@ function TeamBattleCard() {
         <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
           New mode · Squad
         </div>
-        <h3 className="text-3xl font-extrabold neon-text flex items-center gap-2">
-          <span className="text-3xl">⚔️</span> Team Battle 3v3
+        <h3 className="text-2xl sm:text-3xl font-extrabold neon-text flex items-center gap-2 break-words">
+          <span className="text-2xl sm:text-3xl">⚔️</span> Team Battle 3v3
         </h3>
-        <p className="text-fg-dim text-sm">
+        <p className="text-fg-dim text-sm break-words">
           Form a six-player lobby. Three vs three boards, alternating fire.
           Wipe the enemy fleet to win.
         </p>
@@ -699,7 +699,7 @@ function TeamBattleCard() {
             onClick={onCreate}
             disabled={!cloud || busy}
             className={clsx(
-              "rounded-xl px-3 py-2.5 text-sm font-semibold border",
+              "rounded-xl px-3 py-2.5 text-sm font-semibold border min-h-[44px]",
               cloud && !busy
                 ? "neon-btn"
                 : "border-white/15 bg-white/5 text-fg-dim cursor-not-allowed"
@@ -707,20 +707,20 @@ function TeamBattleCard() {
           >
             {busy ? "Creating room…" : "Create Team Room →"}
           </button>
-          <div className="flex gap-2">
+          <div className="flex gap-2 min-w-0">
             <input
               value={joinCode}
               onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 8))}
               placeholder="ENTER CODE"
               maxLength={8}
               disabled={!cloud}
-              className="flex-1 rounded-xl bg-black/40 border border-white/15 px-3 py-2 text-sm font-mono tracking-[0.2em]"
+              className="flex-1 min-w-0 rounded-xl bg-black/40 border border-white/15 px-3 py-2 text-sm font-mono tracking-[0.2em] min-h-[44px]"
             />
             <button
               onClick={onJoin}
               disabled={!cloud || joining || !joinCode.trim()}
               className={clsx(
-                "rounded-xl px-4 py-2 text-sm font-semibold whitespace-nowrap",
+                "rounded-xl px-4 py-2 text-sm font-semibold whitespace-nowrap min-h-[44px]",
                 cloud && joinCode.trim()
                   ? "neon-btn"
                   : "border border-white/15 text-fg-dim cursor-not-allowed"
@@ -778,7 +778,7 @@ function PlayOnlineCard() {
       onClick={onPlayOnline}
       disabled={creating || !cloud}
       className={clsx(
-        "glass neon-border rounded-3xl p-6 relative overflow-hidden text-left h-full flex",
+        "glass neon-border rounded-2xl sm:rounded-3xl p-5 sm:p-6 relative overflow-hidden text-left h-full flex w-full min-h-[44px]",
         (creating || !cloud) && "opacity-80 cursor-not-allowed"
       )}
     >
@@ -795,10 +795,10 @@ function PlayOnlineCard() {
         <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
           Multiplayer · Beta
         </div>
-        <h3 className="text-3xl font-extrabold neon-text flex items-center gap-2">
-          <span className="text-3xl">🌐</span> Play Online
+        <h3 className="text-2xl sm:text-3xl font-extrabold neon-text flex items-center gap-2 break-words">
+          <span className="text-2xl sm:text-3xl">🌐</span> Play Online
         </h3>
-        <p className="text-fg-dim text-sm">
+        <p className="text-fg-dim text-sm break-words">
           Spin up a private lobby, share the invite link, and trade salvos in real time — with chat.
         </p>
         {error && (
