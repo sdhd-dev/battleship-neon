@@ -49,6 +49,7 @@ import { ApplyRewardResult, applyWinReward } from "@/lib/economy";
 import { GameRecord } from "@/lib/game/types";
 import { RewardSummary } from "./RewardSummary";
 import { notify } from "@/lib/notify";
+import { PowerBar } from "./PowerBar";
 
 interface TeamBattleGameProps {
   roomCode: string;
@@ -916,6 +917,13 @@ function PlayingPanel({
           <Board board={myBoard} revealShips compact label="Your Fleet" />
         </div>
       </div>
+
+      <PowerBar
+        activePower={null}
+        onSelect={() => {}}
+        disabled
+        label="Read-only · powers earned via Secret Word mode"
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { StatsPanel } from "@/components/StatsPanel";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { TournamentBanner } from "@/components/TournamentBanner";
 import { SocialPanel } from "@/components/SocialPanel";
+import { ArsenalPanel } from "@/components/ArsenalPanel";
 import { GameRecord, PlayerStats } from "@/lib/game/types";
 import {
   clearHistory,
@@ -56,6 +57,7 @@ export default function Home() {
             onDeleteEntry={handleDeleteEntry}
             onClearAll={handleClearAll}
           />
+          <ArsenalPanel />
           <Leaderboard />
           <SocialPanel />
           <button

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
 import {
+  BOARD_SIZE,
   Board as BoardData,
   Difficulty,
   GameRecord,
@@ -12,6 +13,7 @@ import {
   SHIP_DEFS,
   Ship,
   cellKey,
+  shipCells,
 } from "@/lib/game/types";
 import { allSunk, applyAttack, autoPlace, emptyBoard } from "@/lib/game/board";
 import { AIState, aiNextMove, createAIState, recordAIShot } from "@/lib/game/ai";
@@ -24,12 +26,18 @@ import { recordGame, loadStats } from "@/lib/storage";
 import { supabaseEnabled } from "@/lib/supabase/client";
 import { createRoom, getCurrentPlayerId } from "@/lib/game/multiplayer";
 import { createTeamRoom, fetchTeamRoomByCode, joinTeamRoomByCode } from "@/lib/team-battle";
-import { applyWinReward, ApplyRewardResult } from "@/lib/economy";
+import { applyWinReward, ApplyRewardResult, spendCoins } from "@/lib/economy";
 import { RewardSummary } from "./RewardSummary";
 import { TrainingMode } from "./TrainingMode";
 import { TipOfTheDay } from "./TipOfTheDay";
+import { SecretWordMode } from "./SecretWordMode";
+import { loadProfile } from "@/lib/storage";
+import { PowerBar } from "./PowerBar";
+import { PowerType, consumePower } from "@/lib/powers";
 
-type Phase = "menu" | "placing" | "playing" | "over" | "training";
+type Phase = "menu" | "placing" | "playing" | "over" | "training" | "secret";
+
+const SECRET_WORD_COST = 30;
 type Turn = "player" | "ai";
 
 interface GameUIProps {
@@ -67,6 +75,14 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
   const [startedAt, setStartedAt] = useState(0);
   const [now, setNow] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [activePower, setActivePower] = useState<PowerType | null>(null);
+  const [airstrikeDir, setAirstrikeDir] = useState<"H" | "V">("H");
+  const [pendingShield, setPendingShield] = useState(false);
+  const [smokeCells, setSmokeCells] = useState<Set<string>>(new Set());
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [smokeTurns, setSmokeTurns] = useState(0);
+  const [scannedCells, setScannedCells] = useState<Array<[number, number]>>([]);
+  const [retreatConfirm, setRetreatConfirm] = useState(false);
   const gameRecorded = useRef(false);
 
   useEffect(() => {
@@ -79,6 +95,26 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
     setPhase("menu");
     if (completed && rewarded) setToast("🎓 +25 coins earned!");
   }, []);
+
+  const handleStartSecretWord = useCallback(() => {
+    const balance = loadProfile().coins ?? 0;
+    if (balance < SECRET_WORD_COST) {
+      setToast(`💰 Insufficient coins · need ${SECRET_WORD_COST} ⚓`);
+      return;
+    }
+    const res = spendCoins(SECRET_WORD_COST);
+    if (!res.ok) {
+      setToast(`💰 Insufficient coins · need ${SECRET_WORD_COST} ⚓`);
+      return;
+    }
+    onStatsUpdated();
+    setPhase("secret");
+  }, [onStatsUpdated]);
+
+  const handleSecretExit = useCallback(() => {
+    setPhase("menu");
+    onStatsUpdated();
+  }, [onStatsUpdated]);
 
   // Tick clock for blitz
   useEffect(() => {
@@ -107,6 +143,11 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
     setShotsFired(0);
     setShotsHit(0);
     setReport(null);
+    setActivePower(null);
+    setPendingShield(false);
+    setSmokeCells(new Set());
+    setSmokeTurns(0);
+    setScannedCells([]);
     gameRecorded.current = false;
     setStatusMsg("Battle commenced. Take your shot.");
     const t = Date.now();
@@ -178,8 +219,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
     }
   }, [blitzRemaining, mode, phase, finishGame]);
 
-  const handlePlayerShot = (r: number, c: number) => {
-    if (phase !== "playing" || turn !== "player" || winner) return;
+  const fireSingleShot = (r: number, c: number) => {
     const k = cellKey(r, c);
     if (aiBoard.shots.has(k)) return;
     const { board: nextBoard, result } = applyAttack(aiBoard, r, c);
@@ -192,13 +232,134 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
         finishGame("player", "🏆 Enemy fleet annihilated.");
         return;
       }
-      // Player gets another shot on hit (classic battleship: in this app, single-shot per turn).
-      // Switch to AI turn to keep pacing crisp.
       scheduleAIMove();
     } else {
       setStatusMsg("Miss — handing the controls to the enemy.");
       scheduleAIMove();
     }
+  };
+
+  const handleEnemyCellClick = (r: number, c: number) => {
+    if (phase !== "playing" || turn !== "player" || winner) return;
+    if (activePower === "precision") {
+      const remaining: Array<[number, number]> = [];
+      for (const ship of aiBoard.ships) {
+        if (ship.sunk) continue;
+        for (const [sr, sc] of shipCells(ship)) {
+          const k = cellKey(sr, sc);
+          const st = aiBoard.shots.get(k);
+          if (st !== "hit" && st !== "sunk") remaining.push([sr, sc]);
+        }
+      }
+      if (remaining.length === 0) {
+        setStatusMsg("No targets remain — precision strike cancelled.");
+        setActivePower(null);
+        return;
+      }
+      if (!consumePower("precision").ok) {
+        setActivePower(null);
+        return;
+      }
+      const [tr, tc] = pickRandom(remaining);
+      const { board: nextBoard, result } = applyAttack(aiBoard, tr, tc);
+      setAiBoard(nextBoard);
+      setShotsFired((n) => n + 1);
+      setShotsHit((n) => n + 1);
+      setActivePower(null);
+      setStatusMsg(`🎯 Precision strike — ${labelOf(tr, tc)} hit!`);
+      if (result.win) {
+        finishGame("player", "🏆 Enemy fleet annihilated.");
+        return;
+      }
+      scheduleAIMove();
+      return;
+    }
+    if (activePower === "airstrike") {
+      const cells: Array<[number, number]> = [];
+      if (airstrikeDir === "H") {
+        for (let i = 0; i < 3; i++) cells.push([r, c + i]);
+      } else {
+        for (let i = 0; i < 3; i++) cells.push([r + i, c]);
+      }
+      const inBounds = cells.every(([cr, cc]) => cr >= 0 && cr < BOARD_SIZE && cc >= 0 && cc < BOARD_SIZE);
+      if (!inBounds) {
+        setStatusMsg("Airstrike out of bounds — pick a cell with room for 3 in a row.");
+        return;
+      }
+      if (!consumePower("airstrike").ok) {
+        setActivePower(null);
+        return;
+      }
+      let board = aiBoard;
+      let hits = 0;
+      let fired = 0;
+      let didWin = false;
+      for (const [cr, cc] of cells) {
+        const k = cellKey(cr, cc);
+        if (board.shots.has(k)) continue;
+        const { board: next, result } = applyAttack(board, cr, cc);
+        board = next;
+        fired += 1;
+        if (result.state === "hit" || result.state === "sunk") hits += 1;
+        if (result.win) didWin = true;
+      }
+      setAiBoard(board);
+      setShotsFired((n) => n + fired);
+      setShotsHit((n) => n + hits);
+      setActivePower(null);
+      setStatusMsg(`💣 Airstrike — ${hits}/${fired || 3} hits.`);
+      if (didWin) {
+        finishGame("player", "🏆 Enemy fleet annihilated.");
+        return;
+      }
+      scheduleAIMove();
+      return;
+    }
+    if (activePower === "radar") {
+      const sr = Math.min(Math.max(r, 0), BOARD_SIZE - 2);
+      const sc = Math.min(Math.max(c, 0), BOARD_SIZE - 2);
+      const cells: Array<[number, number]> = [];
+      for (let dr = 0; dr < 2; dr++) for (let dc = 0; dc < 2; dc++) cells.push([sr + dr, sc + dc]);
+      if (!consumePower("radar").ok) {
+        setActivePower(null);
+        return;
+      }
+      setScannedCells((cur) => mergeCells(cur, cells));
+      setActivePower(null);
+      setStatusMsg("🔍 Radar pulse — sectors revealed.");
+      return;
+    }
+    fireSingleShot(r, c);
+  };
+
+  const handlePlayerBoardClick = (r: number, c: number) => {
+    if (phase !== "playing" || turn !== "player" || winner) return;
+    if (activePower !== "smokescreen") return;
+    const sr = Math.min(Math.max(r - 1, 0), BOARD_SIZE - 3);
+    const sc = Math.min(Math.max(c - 1, 0), BOARD_SIZE - 3);
+    const next = new Set<string>();
+    for (let dr = 0; dr < 3; dr++) for (let dc = 0; dc < 3; dc++) next.add(cellKey(sr + dr, sc + dc));
+    if (!consumePower("smokescreen").ok) {
+      setActivePower(null);
+      return;
+    }
+    setSmokeCells(next);
+    setSmokeTurns(2);
+    setActivePower(null);
+    setStatusMsg("💨 Smokescreen deployed — 3x3 cloaked for 2 enemy turns.");
+  };
+
+  const handleSelectPower = (type: PowerType) => {
+    if (phase !== "playing" || turn !== "player" || winner) return;
+    if (type === "shield") {
+      if (pendingShield) return;
+      if (!consumePower("shield").ok) return;
+      setPendingShield(true);
+      setStatusMsg("🛡️ Shield armed — next enemy strike will glance off.");
+      return;
+    }
+    if (type === "double") return;
+    setActivePower((cur) => (cur === type ? null : type));
   };
 
   const scheduleAIMove = useCallback(() => {
@@ -214,6 +375,31 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
     const timer = setTimeout(() => {
       if (cancelled) return;
       const [r, c] = aiNextMove(aiState);
+      const k = cellKey(r, c);
+      const blockedByShield = pendingShield;
+      const blockedBySmoke = !blockedByShield && smokeCells.has(k);
+      if (blockedByShield || blockedBySmoke) {
+        const newShots = new Map(playerBoard.shots);
+        newShots.set(k, "miss");
+        const nextBoard: BoardData = { ...playerBoard, shots: newShots };
+        setPlayerBoard(nextBoard);
+        setAIState((prev) => recordAIShot(prev, r, c, "miss", undefined));
+        if (blockedByShield) {
+          setPendingShield(false);
+          setStatusMsg(`🛡️ Shield deflected the strike at ${labelOf(r, c)}.`);
+        } else {
+          setStatusMsg(`💨 Smokescreen — enemy lost the shot at ${labelOf(r, c)}.`);
+        }
+        setSmokeTurns((t) => {
+          if (t <= 0) return t;
+          const next = t - 1;
+          if (next <= 0) setSmokeCells(new Set());
+          return next;
+        });
+        setAiThinking(false);
+        setTurn("player");
+        return;
+      }
       const { board: nextPlayerBoard, result } = applyAttack(playerBoard, r, c);
       setPlayerBoard(nextPlayerBoard);
       setAIState((prev) => recordAIShot(prev, r, c, result.state, result.sunkShip));
@@ -224,6 +410,12 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
       } else {
         setStatusMsg(`The enemy missed at ${labelOf(r, c)}. Your turn.`);
       }
+      setSmokeTurns((t) => {
+        if (t <= 0) return t;
+        const next = t - 1;
+        if (next <= 0) setSmokeCells(new Set());
+        return next;
+      });
       setAiThinking(false);
       if (allSunk(nextPlayerBoard)) {
         finishGame("ai", "💀 Your fleet has been annihilated.");
@@ -235,7 +427,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [aiState, finishGame, phase, playerBoard, turn, winner]);
+  }, [aiState, finishGame, phase, playerBoard, pendingShield, smokeCells, turn, winner]);
 
   const reset = () => {
     setPhase("menu");
@@ -276,6 +468,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
             <TipOfTheDay />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
               <TrainingCard onPick={() => setPhase("training")} />
+              <SecretWordCard onPick={handleStartSecretWord} />
               <PlayOnlineCard />
               <TeamBattleCard />
               <ModeCard
@@ -298,6 +491,17 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
 
         {phase === "training" && (
           <TrainingMode key="training" onExit={handleTrainingExit} />
+        )}
+
+        {phase === "secret" && (
+          <motion.div
+            key="secret"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+          >
+            <SecretWordMode onExit={handleSecretExit} />
+          </motion.div>
         )}
 
         {phase === "placing" && (
@@ -335,33 +539,170 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
               statusMsg={statusMsg}
             />
 
-            <div className="grid xl:grid-cols-2 gap-6">
-              <div className="flex flex-col gap-3">
-                <Board
-                  board={aiBoard}
-                  revealShips={false}
-                  onCellClick={handlePlayerShot}
-                  disabled={turn !== "player" || !!winner}
-                  label="Enemy Waters · Click to fire"
-                />
+            <div className="grid xl:grid-cols-2 gap-6 min-w-0">
+              <div className="flex flex-col gap-3 min-w-0">
+                <div className="overflow-x-auto -mx-1 px-1">
+                  <Board
+                    board={aiBoard}
+                    revealShips={false}
+                    onCellClick={handleEnemyCellClick}
+                    disabled={turn !== "player" || !!winner}
+                    label={
+                      activePower === "precision"
+                        ? "🎯 Precision armed — click anywhere to strike"
+                        : activePower === "airstrike"
+                          ? `💣 Airstrike armed (${airstrikeDir === "H" ? "→" : "↓"}) — click leftmost cell`
+                          : activePower === "radar"
+                            ? "🔍 Radar armed — click top-left of 2x2 area"
+                            : "Enemy Waters · Click to fire"
+                    }
+                    scannedCells={scannedCells}
+                  />
+                </div>
                 <ShipStatus title="Enemy Fleet" ships={aiBoard.ships} />
               </div>
-              <div className="flex flex-col gap-3">
-                <Board board={playerBoard} revealShips label="Your Fleet · Incoming fire" compact />
+              <div className="flex flex-col gap-3 min-w-0">
+                <div className="overflow-x-auto -mx-1 px-1">
+                  <Board
+                    board={playerBoard}
+                    revealShips
+                    label={
+                      activePower === "smokescreen"
+                        ? "💨 Smokescreen armed — click center of 3x3 zone"
+                        : "Your Fleet · Incoming fire"
+                    }
+                    compact
+                    onCellClick={activePower === "smokescreen" ? handlePlayerBoardClick : undefined}
+                    disabled={activePower !== "smokescreen"}
+                    smokedCells={Array.from(smokeCells).map((k) => {
+                      const [rs, cs] = k.split(",").map(Number);
+                      return [rs, cs] as [number, number];
+                    })}
+                  />
+                </div>
                 <ShipStatus title="Your Fleet" ships={playerBoard.ships} reveal />
               </div>
             </div>
 
+            <PowerBar
+              activePower={activePower}
+              onSelect={handleSelectPower}
+              disabled={turn !== "player" || !!winner}
+              isPowerDisabled={(t) => (t === "shield" && pendingShield)}
+            />
+            {activePower === "airstrike" && (
+              <div className="flex justify-end items-center gap-2 -mt-2">
+                <span className="text-[11px] text-fg-dim">Airstrike direction:</span>
+                <button
+                  onClick={() => setAirstrikeDir((d) => (d === "H" ? "V" : "H"))}
+                  className="rounded-lg px-3 py-1.5 text-xs font-bold border border-white/15 hover:bg-white/5"
+                  style={{ color: "#f97316", textShadow: "0 0 8px #f97316" }}
+                >
+                  {airstrikeDir === "H" ? "→ Horizontal" : "↓ Vertical"} (toggle)
+                </button>
+              </div>
+            )}
+            {pendingShield && (
+              <div className="flex justify-end -mt-2">
+                <span
+                  className="rounded-full px-3 py-1 text-[11px] font-bold border border-emerald-300/40"
+                  style={{ color: "#34d399", textShadow: "0 0 8px #34d399" }}
+                >
+                  🛡️ Shield queued
+                </span>
+              </div>
+            )}
+
             <div className="flex justify-end">
               <button
-                onClick={() => {
-                  if (confirm("Surrender this match?")) finishGame("ai", "🏳 You surrendered.");
+                onClick={() => setRetreatConfirm(true)}
+                className="group relative rounded-xl px-4 py-2 text-sm font-bold border border-rose-400/40 hover:border-rose-300/70 transition-all overflow-hidden"
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(244,63,94,0.12), rgba(249,115,22,0.10))",
+                  color: "#fda4af",
+                  textShadow: "0 0 10px rgba(244,63,94,0.55)",
+                  boxShadow: "0 0 0 1px rgba(244,63,94,0.15), 0 6px 22px rgba(244,63,94,0.18)",
                 }}
-                className="rounded-xl px-3 py-2 border border-white/15 text-sm hover:bg-white/5"
               >
-                Surrender
+                <span className="relative z-10 inline-flex items-center gap-1.5">
+                  <span aria-hidden>🏳</span>
+                  Retreat
+                </span>
+                <span
+                  aria-hidden
+                  className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, rgba(244,63,94,0.22), rgba(249,115,22,0.18))",
+                  }}
+                />
               </button>
             </div>
+
+            <AnimatePresence>
+              {retreatConfirm && (
+                <motion.div
+                  key="retreat-overlay"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[120] grid place-items-center p-4"
+                  style={{
+                    background:
+                      "radial-gradient(circle at 50% 50%, rgba(8,12,30,0.85), rgba(0,0,0,0.95))",
+                    backdropFilter: "blur(12px)",
+                  }}
+                  onClick={() => setRetreatConfirm(false)}
+                >
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0, y: 8 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 280, damping: 24 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="glass neon-border rounded-3xl p-6 sm:p-8 max-w-sm w-full text-center"
+                  >
+                    <div className="text-5xl mb-3" aria-hidden>🏳</div>
+                    <div className="text-[10px] sm:text-xs uppercase tracking-[0.4em] text-fg-dim">
+                      Abandon ship
+                    </div>
+                    <h2 className="text-2xl sm:text-3xl font-extrabold title-grad mt-1">
+                      Retreat from battle?
+                    </h2>
+                    <p className="mt-3 text-sm text-fg-dim">
+                      The match will end and the AI will claim victory. You can
+                      always set sail again from the menu.
+                    </p>
+                    <div className="mt-6 grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setRetreatConfirm(false)}
+                        className="rounded-xl px-3 py-2.5 text-sm font-bold border border-white/15 hover:bg-white/5 transition-colors"
+                      >
+                        Stay & fight
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRetreatConfirm(false);
+                          finishGame("ai", "🏳 You retreated.");
+                        }}
+                        className="rounded-xl px-3 py-2.5 text-sm font-extrabold border border-rose-400/50 transition-all"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, rgba(244,63,94,0.25), rgba(249,115,22,0.20))",
+                          color: "#fecdd3",
+                          textShadow: "0 0 10px rgba(244,63,94,0.6)",
+                          boxShadow:
+                            "0 0 0 1px rgba(244,63,94,0.3), 0 8px 26px rgba(244,63,94,0.25)",
+                        }}
+                      >
+                        🏳 Retreat
+                      </button>
+                    </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
 
@@ -424,6 +765,69 @@ function Hero() {
         </p>
       </div>
     </div>
+  );
+}
+
+function SecretWordCard({ onPick }: { onPick: () => void }) {
+  return (
+    <motion.button
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onPick}
+      className="glass neon-border rounded-2xl sm:rounded-3xl p-5 sm:p-6 relative overflow-hidden text-left h-full flex w-full min-h-[44px]"
+      style={{
+        boxShadow:
+          "0 0 0 1px color-mix(in oklab, #14b8a6 60%, transparent), 0 0 22px color-mix(in oklab, #14b8a6 35%, transparent), inset 0 0 18px color-mix(in oklab, #064e3b 40%, transparent)",
+      }}
+    >
+      <motion.div
+        className="absolute -top-20 -right-20 w-56 h-56 rounded-full pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(circle, color-mix(in oklab, #14b8a6 40%, transparent), transparent 70%)",
+        }}
+        animate={{ scale: [1, 1.2, 1] }}
+        transition={{ duration: 7, repeat: Infinity }}
+      />
+      <div
+        className="absolute top-3 right-3 rounded-full px-2 py-1 text-[10px] font-bold border z-10"
+        style={{
+          color: "#fbbf24",
+          textShadow: "0 0 8px #fbbf24",
+          borderColor: "rgba(251,191,36,0.5)",
+          background: "rgba(251,191,36,0.12)",
+        }}
+      >
+        💰 30 ⚓
+      </div>
+      <div className="relative z-10 flex flex-col flex-1 gap-2 min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
+          Premium · Word hunt
+        </div>
+        <h3
+          className="text-2xl sm:text-3xl font-extrabold flex items-center gap-2 break-words"
+          style={{ color: "#5eead4", textShadow: "0 0 12px #14b8a6" }}
+        >
+          <span className="text-2xl sm:text-3xl">🔤</span> Secret Word
+        </h3>
+        <p className="text-fg-dim text-sm break-words">
+          Decode the hidden word from ship cells. Win the roulette. Earn powers.
+        </p>
+        <div className="mt-auto pt-3">
+          <span
+            className="inline-block rounded-xl px-3 py-2 text-xs font-semibold border pulse-glow"
+            style={{
+              borderColor: "rgba(20,184,166,0.55)",
+              background: "rgba(20,184,166,0.12)",
+              color: "#5eead4",
+              textShadow: "0 0 10px #14b8a6",
+            }}
+          >
+            Begin mission · 30 ⚓
+          </span>
+        </div>
+      </div>
+    </motion.button>
   );
 }
 
@@ -619,6 +1023,26 @@ function ShipStatus({ title, ships, reveal }: { title: string; ships: Ship[]; re
 
 function labelOf(r: number, c: number) {
   return `${"ABCDEFGHIJ"[c]}${r + 1}`;
+}
+
+function pickRandom<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function mergeCells(
+  prev: Array<[number, number]>,
+  add: Array<[number, number]>
+): Array<[number, number]> {
+  const set = new Set(prev.map(([r, c]) => `${r},${c}`));
+  const out = [...prev];
+  for (const [r, c] of add) {
+    const k = `${r},${c}`;
+    if (!set.has(k)) {
+      set.add(k);
+      out.push([r, c]);
+    }
+  }
+  return out;
 }
 
 function TeamBattleCard() {

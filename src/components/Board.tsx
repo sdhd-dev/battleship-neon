@@ -17,6 +17,12 @@ interface BoardProps {
   compact?: boolean;
   glowCells?: Array<[number, number]>;
   arrowCells?: Array<[number, number]>;
+  // Cells that have been radar-scanned: ship presence becomes visible
+  // even if `revealShips` is false. Render with a cyan pulse outline.
+  scannedCells?: Array<[number, number]>;
+  // Cells that are currently shrouded by a smokescreen power. Visually
+  // overlaid with a dim cloud tint.
+  smokedCells?: Array<[number, number]>;
 }
 
 const COLS = "ABCDEFGHIJ".split("");
@@ -34,6 +40,8 @@ export function Board({
   compact,
   glowCells,
   arrowCells,
+  scannedCells,
+  smokedCells,
 }: BoardProps) {
   const shipMap = new Map<string, Ship>();
   for (const s of board.ships) {
@@ -53,18 +61,26 @@ export function Board({
   if (arrowCells) {
     for (const [r, c] of arrowCells) arrowSet.add(cellKey(r, c));
   }
+  const scannedSet = new Set<string>();
+  if (scannedCells) {
+    for (const [r, c] of scannedCells) scannedSet.add(cellKey(r, c));
+  }
+  const smokedSet = new Set<string>();
+  if (smokedCells) {
+    for (const [r, c] of smokedCells) smokedSet.add(cellKey(r, c));
+  }
 
-  const cellSize = compact ? "w-7 h-7 sm:w-8 sm:h-8" : "w-8 h-8 sm:w-10 sm:h-10 md:w-11 md:h-11";
+  const cellSize = compact ? "w-6 h-6 sm:w-8 sm:h-8" : "w-7 h-7 sm:w-10 sm:h-10 md:w-11 md:h-11";
 
   return (
-    <div className={clsx("inline-flex flex-col gap-2 no-select", disabled && "opacity-70")}>
+    <div className={clsx("inline-flex flex-col gap-2 no-select max-w-full", disabled && "opacity-70")}>
       {label && (
-        <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-fg-dim">
-          <span>{label}</span>
-          {highlightShip && <span className="text-accent">⚓ {highlightShip}</span>}
+        <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-fg-dim gap-2 min-w-0">
+          <span className="truncate">{label}</span>
+          {highlightShip && <span className="text-accent shrink-0">⚓ {highlightShip}</span>}
         </div>
       )}
-      <div className="glass neon-border rounded-2xl p-3 sm:p-4 scan">
+      <div className="glass neon-border rounded-2xl p-1.5 sm:p-4 scan">
         <div className="flex">
           <div className={clsx(cellSize, "flex items-center justify-center")} />
           {COLS.map((c) => (
@@ -82,13 +98,19 @@ export function Board({
               const ship = shipMap.get(k);
               const isPreview = previewSet.has(k);
 
-              const showShip = revealShips && ship && shotState !== "sunk" && shotState !== "hit";
+              const isScanned = scannedSet.has(k);
+              const isSmoked = smokedSet.has(k);
+              const showShip =
+                (revealShips || (isScanned && ship)) &&
+                ship &&
+                shotState !== "sunk" &&
+                shotState !== "hit";
               const isHighlighted = highlightShip && ship?.id === highlightShip;
               const isGlow = glowSet.has(k) && !shotState;
               const hasArrow = arrowSet.has(k) && !shotState;
 
               const classes = clsx(
-                "cell rounded-md m-[1px]",
+                "cell rounded-md sm:m-[1px]",
                 cellSize,
                 shotState === "miss" && "miss",
                 shotState === "hit" && "hit",
@@ -113,6 +135,30 @@ export function Board({
                 >
                   <CellMark state={shotState} />
                   {hasArrow && <span className="tut-arrow">▼</span>}
+                  {isScanned && !shotState && (
+                    <motion.div
+                      aria-hidden
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: [0.2, 0.7, 0.2] }}
+                      transition={{ duration: 1.6, repeat: Infinity }}
+                      className="absolute inset-0 rounded-md pointer-events-none"
+                      style={{
+                        boxShadow: "inset 0 0 0 2px #22d3ee",
+                      }}
+                    />
+                  )}
+                  {isSmoked && (
+                    <motion.div
+                      aria-hidden
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 0.55 }}
+                      className="absolute inset-0 rounded-md pointer-events-none"
+                      style={{
+                        background:
+                          "radial-gradient(circle, rgba(148,163,184,0.55), rgba(15,23,42,0.85))",
+                      }}
+                    />
+                  )}
                 </motion.div>
               );
             })}

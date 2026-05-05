@@ -31,6 +31,10 @@ export interface LocalProfile {
 
   // ── referrals ──
   referredBy?: string; // username of the inviter, set once on signup
+
+  // ── powers / secret word mode ──
+  powers?: { type: string; count: number }[];
+  secretWordWins?: number;
 }
 
 export interface LeaderboardEntry {
@@ -65,6 +69,8 @@ const DEFAULT_PROFILE: LocalProfile = {
   level: 1,
   ownedCosmetics: [],
   activeBoardTheme: "default",
+  powers: [],
+  secretWordWins: 0,
 };
 
 export const defaultStats = (): PlayerStats => ({
@@ -87,6 +93,8 @@ function backfillProfile(p: Partial<LocalProfile>): LocalProfile {
     level: p.level ?? levelForXp(xp),
     ownedCosmetics: p.ownedCosmetics ?? [],
     activeBoardTheme: p.activeBoardTheme ?? "default",
+    powers: Array.isArray(p.powers) ? p.powers : [],
+    secretWordWins: p.secretWordWins ?? 0,
   } as LocalProfile;
 }
 
@@ -360,6 +368,8 @@ export async function syncCloudProfile(profile: LocalProfile) {
         coins: profile.coins ?? 0,
         xp: profile.xp ?? 0,
         level: profile.level ?? 1,
+        powers: profile.powers ?? [],
+        secret_word_wins: profile.secretWordWins ?? 0,
         referral_code: profile.username?.toLowerCase() ?? null,
         referred_by: profile.referredBy ?? null,
         last_daily_win_at: profile.lastDailyWinAt
@@ -381,7 +391,7 @@ export async function pullCloudProfile(): Promise<Partial<LocalProfile> | null> 
   const { data, error } = await sb
     .from("profiles")
     .select(
-      "username,city,pro,ship_skin,active_board_theme,active_badge,owned_cosmetics,coins,xp,level,referred_by,last_daily_win_at"
+      "username,city,pro,ship_skin,active_board_theme,active_badge,owned_cosmetics,coins,xp,level,powers,secret_word_wins,referred_by,last_daily_win_at"
     )
     .eq("id", uid)
     .maybeSingle();
@@ -397,6 +407,10 @@ export async function pullCloudProfile(): Promise<Partial<LocalProfile> | null> 
     coins: data.coins ?? 0,
     xp: data.xp ?? 0,
     level: data.level ?? 1,
+    powers: Array.isArray(data.powers)
+      ? (data.powers as { type: string; count: number }[])
+      : [],
+    secretWordWins: (data.secret_word_wins as number | null) ?? 0,
     referredBy: data.referred_by ?? undefined,
     lastDailyWinAt: data.last_daily_win_at
       ? new Date(data.last_daily_win_at).getTime()

@@ -14,6 +14,7 @@ import {
 } from "@/lib/progression";
 import { buildInviteUrl, fetchReferralStats } from "@/lib/referrals";
 import { ClanTag } from "./ClanTag";
+import { POWER_DEFS, readInventory } from "@/lib/powers";
 
 interface TopBarProps {
   onUpgrade: () => void;
@@ -240,6 +241,37 @@ export function TopBar({ onUpgrade }: TopBarProps) {
                       </div>
                     </div>
                   </div>
+
+                  {/* Arsenal summary */}
+                  {(() => {
+                    const inv = mounted ? readInventory(profile) : [];
+                    const total = inv.reduce((a, e) => a + e.count, 0);
+                    if (!total) return null;
+                    return (
+                      <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3">
+                        <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">
+                          ⚡ Arsenal
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {inv.map((e) => {
+                            const def = POWER_DEFS[e.type as keyof typeof POWER_DEFS];
+                            if (!def) return null;
+                            return (
+                              <span
+                                key={e.type}
+                                className="rounded-md border border-white/10 bg-black/30 px-2 py-1 text-[11px] flex items-center gap-1"
+                                style={{ color: def.color }}
+                                title={def.name}
+                              >
+                                <span>{def.icon}</span>
+                                <span className="font-bold tabular-nums">×{e.count}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Referrals */}
                   <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-3">

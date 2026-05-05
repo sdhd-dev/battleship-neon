@@ -49,6 +49,7 @@ import { bumpClanWin, rivalClanBoost } from "@/lib/clans";
 import { ClanTag } from "./ClanTag";
 import { GameRecord } from "@/lib/game/types";
 import { RewardSummary } from "./RewardSummary";
+import { PowerBar } from "./PowerBar";
 
 type Side = "p1" | "p2";
 type Stage = "placing" | "playing" | "over";
@@ -645,25 +646,33 @@ export function MultiplayerGame({
         )}
 
         {stage === "playing" && (
-          <div className="grid xl:grid-cols-2 gap-6">
-            <div className="flex flex-col gap-3">
-              <Board
-                board={enemyBoardData}
-                revealShips={false}
-                disabled={turn !== mySide || !!pendingShot || !!winner}
-                onCellClick={fireShot}
-                label={`Enemy Waters · ${turn === mySide ? "Click to fire" : "Wait"}`}
-              />
+          <>
+            <div className="grid xl:grid-cols-2 gap-6">
+              <div className="flex flex-col gap-3">
+                <Board
+                  board={enemyBoardData}
+                  revealShips={false}
+                  disabled={turn !== mySide || !!pendingShot || !!winner}
+                  onCellClick={fireShot}
+                  label={`Enemy Waters · ${turn === mySide ? "Click to fire" : "Wait"}`}
+                />
+              </div>
+              <div className="flex flex-col gap-3">
+                <Board
+                  board={myBoardData}
+                  revealShips
+                  compact
+                  label="Your Fleet · Incoming fire"
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-3">
-              <Board
-                board={myBoardData}
-                revealShips
-                compact
-                label="Your Fleet · Incoming fire"
-              />
-            </div>
-          </div>
+            <PowerBar
+              activePower={null}
+              onSelect={() => {}}
+              disabled
+              label="Read-only · powers earned via Secret Word mode"
+            />
+          </>
         )}
 
         {stage === "over" && (
