@@ -755,6 +755,20 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
             className="grid gap-5"
           >
             {rewardResult && <RewardSummary result={rewardResult} />}
+            <a
+              href="https://t.me/battleshipNfactorial"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center justify-center gap-2"
+              style={{
+                color: "#2AABEE",
+                border: "1px solid rgba(42,171,238,0.55)",
+                background: "rgba(42,171,238,0.10)",
+                boxShadow: "0 0 16px rgba(42,171,238,0.35)",
+              }}
+            >
+              💬 Share feedback on Telegram →
+            </a>
             <CoachPanel report={report} />
             <div className="grid xl:grid-cols-2 gap-6">
               <div className="flex flex-col gap-3">

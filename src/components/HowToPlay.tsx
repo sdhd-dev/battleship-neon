@@ -255,6 +255,46 @@ export function HowToPlay({ open, onClose }: Props) {
               ))}
             </div>
 
+            <section
+              className="rounded-2xl mt-6 p-5 grid sm:grid-cols-[1fr_auto] gap-3 items-center"
+              style={{
+                color: "#2AABEE",
+                border: "1px solid rgba(42,171,238,0.55)",
+                background: "rgba(42,171,238,0.10)",
+                boxShadow: "0 0 22px rgba(42,171,238,0.35)",
+              }}
+            >
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
+                  Join Community
+                </div>
+                <h3
+                  className="text-xl sm:text-2xl font-extrabold mt-1"
+                  style={{ textShadow: "0 0 12px #2AABEE" }}
+                >
+                  💬 Battleship.Neon on Telegram
+                </h3>
+                <p className="text-sm text-fg-dim mt-1 leading-relaxed">
+                  Share feedback, report bugs, suggest new powers, find rivals
+                  for matches. Captains welcome.
+                </p>
+              </div>
+              <a
+                href="https://t.me/battleshipNfactorial"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl px-5 py-3 font-bold inline-flex items-center justify-center gap-2 min-h-[44px]"
+                style={{
+                  color: "#2AABEE",
+                  border: "1px solid #2AABEE",
+                  background: "rgba(42,171,238,0.18)",
+                  textShadow: "0 0 8px #2AABEE",
+                }}
+              >
+                💬 Open Telegram
+              </a>
+            </section>
+
             <div className="text-center mt-8 pb-4">
               <button
                 onClick={onClose}

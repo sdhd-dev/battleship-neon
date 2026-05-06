@@ -5,6 +5,7 @@ import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { TeamBattleGame } from "@/components/TeamBattleGame";
 import { UpgradeModal } from "@/components/UpgradeModal";
+import { SiteFooter } from "@/components/SiteFooter";
 import { useAuth } from "@/components/AuthProvider";
 import { getCurrentPlayerId } from "@/lib/game/multiplayer";
 
@@ -53,6 +54,7 @@ export default function TeamRoomPage({
           </Link>
         </div>
       </main>
+      <SiteFooter />
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   );

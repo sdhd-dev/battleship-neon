@@ -12,6 +12,7 @@ import { ArsenalPanel } from "@/components/ArsenalPanel";
 import { SecretWordProgress } from "@/components/SecretWordProgress";
 import { CustomShipCard } from "@/components/CustomShipCard";
 import { MobilePanels } from "@/components/MobilePanels";
+import { SiteFooter, TelegramLink } from "@/components/SiteFooter";
 import { GameRecord, PlayerStats } from "@/lib/game/types";
 import {
   clearHistory,
@@ -82,6 +83,21 @@ export default function Home() {
           <CustomShipCard />
           <Leaderboard />
           <SocialPanel />
+          <div
+            className="glass rounded-2xl p-4 grid gap-2"
+            style={{
+              border: "1px solid rgba(42,171,238,0.45)",
+              boxShadow: "0 0 18px rgba(42,171,238,0.25)",
+            }}
+          >
+            <div className="text-[11px] uppercase tracking-[0.3em] text-fg-dim">
+              💬 Join Community
+            </div>
+            <div className="text-sm leading-relaxed">
+              Found a bug? Have an idea? Join our Telegram!
+            </div>
+            <TelegramLink>💬 Open Telegram</TelegramLink>
+          </div>
           <button
             onClick={() => setUpgradeOpen(true)}
             className="neon-btn rounded-2xl px-4 py-3 font-semibold pulse-glow"
@@ -89,11 +105,12 @@ export default function Home() {
             ✦ Upgrade to Pro · Unlock Skins
           </button>
           <div className="text-[11px] text-fg-dim text-center leading-relaxed">
-            Built with Next.js 14 · Tailwind · Framer Motion · Supabase.<br />
+            Built with Next.js · Tailwind · Framer Motion · Supabase.<br />
             Probability-density AI · 3-min blitz · AI coach.
           </div>
         </aside>
       </main>
+      <SiteFooter />
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   );

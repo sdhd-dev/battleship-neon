@@ -8,6 +8,7 @@ import { TopBar } from "@/components/TopBar";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { SecretCodeInput } from "@/components/SecretCodeInput";
 import { useAuth } from "@/components/AuthProvider";
+import { SiteFooter } from "@/components/SiteFooter";
 import { CustomShip, CustomShipPower } from "@/lib/storage";
 import { POWER_DEFS } from "@/lib/powers";
 import {
@@ -67,6 +68,7 @@ export default function WorkshopPage() {
           <WorkshopLocked decoded={decoded} />
         )}
       </main>
+      <SiteFooter />
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   );

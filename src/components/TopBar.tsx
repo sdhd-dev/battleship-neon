@@ -186,6 +186,21 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         >
           ⚑
         </Link>
+        <Link
+          href="/market"
+          className="hidden sm:inline-flex items-center gap-1 rounded-xl px-3 py-2 border border-white/15 hover:bg-white/5 text-sm font-semibold"
+          aria-label="Market"
+        >
+          <span>🛒</span>
+          <span>Market</span>
+        </Link>
+        <Link
+          href="/market"
+          className="sm:hidden inline-flex items-center justify-center rounded-xl px-2.5 py-2 border border-white/15 hover:bg-white/5 text-base"
+          aria-label="Market"
+        >
+          🛒
+        </Link>
         <button
           onClick={() => setGuideOpen(true)}
           className="hidden sm:inline-flex items-center gap-1 rounded-xl px-3 py-2 border border-white/15 hover:bg-white/5 text-sm font-semibold"
@@ -201,6 +216,22 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         >
           📖
         </button>
+        <a
+          href="https://t.me/battleshipNfactorial"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Join Telegram community"
+          title="Join the Telegram community"
+          className="inline-flex items-center justify-center rounded-xl px-2.5 py-2 text-base sm:text-sm font-semibold"
+          style={{
+            color: "#2AABEE",
+            border: "1px solid rgba(42,171,238,0.5)",
+            background: "rgba(42,171,238,0.10)",
+            boxShadow: "0 0 12px rgba(42,171,238,0.35)",
+          }}
+        >
+          ✈
+        </a>
         <button
           onClick={onUpgrade}
           suppressHydrationWarning

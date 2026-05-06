@@ -5,9 +5,15 @@ import { useEffect, useState } from "react";
 import { LocalProfile, PROFILE_CHANGE_EVENT, loadProfile } from "@/lib/storage";
 import { POWER_DEFS } from "@/lib/powers";
 import { findShipKind, findSkin } from "@/lib/workshop";
+import { useAuth } from "./AuthProvider";
+import { listShipForSale } from "@/lib/market";
+import { ListForSaleDialog } from "./ListForSaleDialog";
 
 export function CustomShipCard() {
   const [profile, setProfile] = useState<LocalProfile | null>(null);
+  const [listing, setListing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { username, cloudEnabled } = useAuth();
 
   useEffect(() => {
     const refresh = () => setProfile(loadProfile());
@@ -40,6 +46,15 @@ export function CustomShipCard() {
   const ship = profile.customShip;
   const kind = findShipKind(ship.type);
   const skin = findSkin(ship.skin);
+  const canList = cloudEnabled && !!username;
+
+  const onConfirm = async (price: number) => {
+    if (!ship) return;
+    setBusy(true);
+    const res = await listShipForSale(ship, price);
+    setBusy(false);
+    if (res.ok) setListing(false);
+  };
 
   return (
     <div className="glass rounded-2xl p-4 grid gap-3 relative overflow-hidden">
@@ -95,7 +110,24 @@ export function CustomShipCard() {
             })}
           </div>
         )}
+        {canList && (
+          <button
+            onClick={() => setListing(true)}
+            className="rounded-lg px-3 py-2 text-xs font-bold border border-amber-300/40 hover:bg-amber-300/10 text-amber-200 mt-1"
+            title="Sell this custom ship on the global market"
+          >
+            ⚓ List Ship for Sale
+          </button>
+        )}
       </div>
+      <ListForSaleDialog
+        open={listing}
+        title={`List ${ship.name}`}
+        subtitle="The ship leaves your hangar until it sells or you cancel the listing."
+        busy={busy}
+        onClose={() => setListing(false)}
+        onConfirm={onConfirm}
+      />
     </div>
   );
 }

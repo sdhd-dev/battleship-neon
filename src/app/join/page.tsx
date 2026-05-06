@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { stashPendingReferral } from "@/lib/referrals";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export default function JoinPage() {
   return (
@@ -32,7 +33,8 @@ function JoinInner() {
   }, [ref]);
 
   return (
-    <div className="bg-field min-h-screen flex items-center justify-center p-4">
+    <div className="bg-field min-h-screen flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -76,6 +78,8 @@ function JoinInner() {
           </Link>
         </div>
       </motion.div>
+      </div>
+      <SiteFooter />
     </div>
   );
 }

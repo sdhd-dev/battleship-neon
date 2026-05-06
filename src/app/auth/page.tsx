@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/components/AuthProvider";
+import { SiteFooter } from "@/components/SiteFooter";
 
 type Mode = "signin" | "signup";
 
@@ -393,6 +394,7 @@ function AuthPageInner() {
           </div>
         </motion.div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

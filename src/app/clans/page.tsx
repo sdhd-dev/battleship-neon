@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { TopBar } from "@/components/TopBar";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useAuth } from "@/components/AuthProvider";
+import { SiteFooter } from "@/components/SiteFooter";
 import {
   ClanRow,
   createClan,
@@ -239,6 +240,7 @@ export default function ClansPage() {
           </Link>
         </div>
       </main>
+      <SiteFooter />
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   );

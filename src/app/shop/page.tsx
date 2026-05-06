@@ -8,6 +8,7 @@ import { TopBar } from "@/components/TopBar";
 import { UpgradeModal } from "@/components/UpgradeModal";
 import { useAuth } from "@/components/AuthProvider";
 import { PromoRedeem } from "@/components/PromoRedeem";
+import { SiteFooter } from "@/components/SiteFooter";
 import {
   BOARD_THEMES,
   PROFILE_BADGES,
@@ -183,6 +184,7 @@ export default function ShopPage() {
           </Link>
         </div>
       </main>
+      <SiteFooter />
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
     </div>
   );

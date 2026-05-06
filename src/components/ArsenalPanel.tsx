@@ -4,12 +4,18 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { POWER_DEFS, PowerType, listPowerDefs, readInventory } from "@/lib/powers";
 import { LocalProfile, PROFILE_CHANGE_EVENT, loadProfile } from "@/lib/storage";
+import { useAuth } from "./AuthProvider";
+import { listPowerForSale } from "@/lib/market";
+import { ListForSaleDialog } from "./ListForSaleDialog";
 
 // Read-only Arsenal display for the home page sidebar / profile area.
 // Lists each owned power with its count; renders a placeholder hint
 // when the inventory is empty.
 export function ArsenalPanel() {
   const [profile, setProfile] = useState<LocalProfile | null>(null);
+  const [listingType, setListingType] = useState<PowerType | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { username, cloudEnabled } = useAuth();
 
   useEffect(() => {
     const refresh = () => setProfile(loadProfile());
@@ -31,6 +37,15 @@ export function ArsenalPanel() {
 
   const inventory = readInventory(profile);
   const totalCount = inventory.reduce((acc, e) => acc + e.count, 0);
+  const canList = cloudEnabled && !!username;
+
+  const onConfirmListing = async (price: number) => {
+    if (!listingType) return;
+    setBusy(true);
+    const res = await listPowerForSale(listingType, price);
+    setBusy(false);
+    if (res.ok) setListingType(null);
+  };
 
   return (
     <div className="glass rounded-2xl p-4">
@@ -52,7 +67,13 @@ export function ArsenalPanel() {
             const count = inventory.find((e) => e.type === def.type)?.count ?? 0;
             if (count === 0) return null;
             return (
-              <PowerCard key={def.type} type={def.type} count={count} />
+              <PowerCard
+                key={def.type}
+                type={def.type}
+                count={count}
+                canList={canList}
+                onList={() => setListingType(def.type)}
+              />
             );
           })}
         </div>
@@ -65,11 +86,32 @@ export function ArsenalPanel() {
           </span>
         </div>
       ) : null}
+
+      <ListForSaleDialog
+        open={!!listingType}
+        title={
+          listingType ? `List ${POWER_DEFS[listingType].name}` : "List power"
+        }
+        subtitle="Pick a price in Naval Coins. The power leaves your inventory until sold or cancelled."
+        busy={busy}
+        onClose={() => setListingType(null)}
+        onConfirm={onConfirmListing}
+      />
     </div>
   );
 }
 
-function PowerCard({ type, count }: { type: PowerType; count: number }) {
+function PowerCard({
+  type,
+  count,
+  canList,
+  onList,
+}: {
+  type: PowerType;
+  count: number;
+  canList: boolean;
+  onList: () => void;
+}) {
   const def = POWER_DEFS[type];
   return (
     <motion.div
@@ -99,6 +141,15 @@ function PowerCard({ type, count }: { type: PowerType; count: number }) {
       </div>
       <div className="text-[11px] font-semibold leading-tight relative z-10">{def.name}</div>
       <div className="text-[10px] text-fg-dim leading-tight relative z-10">{def.blurb}</div>
+      {canList && (
+        <button
+          onClick={onList}
+          className="relative z-10 mt-1 rounded-md px-2 py-1 text-[10px] font-bold border border-amber-300/40 hover:bg-amber-300/10 text-amber-200"
+          title="List one of these on the global market"
+        >
+          ⚓ List for Sale
+        </button>
+      )}
     </motion.div>
   );
 }
