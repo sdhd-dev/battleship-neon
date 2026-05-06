@@ -92,9 +92,9 @@ export function TopBar({ onUpgrade }: TopBarProps) {
   };
 
   return (
-    <header className="relative z-50 flex items-center justify-between p-4 sm:p-6 gap-2 sm:gap-3">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0">
+    <header className="relative z-50 flex items-center justify-between px-3 py-3 sm:p-6 gap-1.5 sm:gap-3">
+      <div className="flex items-center gap-3 min-w-0 shrink-0 sm:flex-1">
+        <Link href="/" className="flex items-center gap-2 sm:gap-3 min-w-0" aria-label="Home">
           <div className="relative shrink-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-accent via-accent-3 to-accent-2 shadow-[0_0_18px_rgba(0,240,255,0.5)]" />
             <motion.div
@@ -103,7 +103,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
               transition={{ duration: 2.4, repeat: Infinity }}
             />
           </div>
-          <div className="leading-tight min-w-0">
+          <div className="hidden sm:block leading-tight min-w-0">
             <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim truncate">Naval Combat OS</div>
             <h1 className="text-lg sm:text-2xl font-extrabold title-grad whitespace-nowrap">BATTLESHIP.NEON</h1>
           </div>
@@ -146,7 +146,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {/* Coin balance — desktop shows count; mobile shows compact icon */}
         <Link
           href="/shop"
@@ -165,10 +165,18 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         </Link>
         <Link
           href="/shop"
-          className="sm:hidden inline-flex items-center justify-center rounded-xl px-2.5 py-2 border border-amber-300/40 bg-amber-300/10 hover:bg-amber-300/20 text-base"
+          suppressHydrationWarning
+          className="sm:hidden inline-flex items-center gap-1 rounded-xl h-9 px-2 border border-amber-300/40 bg-amber-300/10 hover:bg-amber-300/20 text-sm shrink-0"
           aria-label="Open shop"
         >
-          ⚓
+          <span className="text-base leading-none">⚓</span>
+          <span
+            suppressHydrationWarning
+            className="font-bold tabular-nums text-[11px] leading-none"
+            style={{ color: "#fbbf24", textShadow: "0 0 8px #fbbf24" }}
+          >
+            {coins >= 1000 ? `${(coins / 1000).toFixed(coins >= 10000 ? 0 : 1)}k` : coins}
+          </span>
         </Link>
 
         <Link
@@ -180,26 +188,12 @@ export function TopBar({ onUpgrade }: TopBarProps) {
           <span>Clans</span>
         </Link>
         <Link
-          href="/clans"
-          className="sm:hidden inline-flex items-center justify-center rounded-xl px-2.5 py-2 border border-white/15 hover:bg-white/5 text-base"
-          aria-label="Clans"
-        >
-          ⚑
-        </Link>
-        <Link
           href="/market"
           className="hidden sm:inline-flex items-center gap-1 rounded-xl px-3 py-2 border border-white/15 hover:bg-white/5 text-sm font-semibold"
           aria-label="Market"
         >
           <span>🛒</span>
           <span>Market</span>
-        </Link>
-        <Link
-          href="/market"
-          className="sm:hidden inline-flex items-center justify-center rounded-xl px-2.5 py-2 border border-white/15 hover:bg-white/5 text-base"
-          aria-label="Market"
-        >
-          🛒
         </Link>
         <button
           onClick={() => setGuideOpen(true)}
@@ -209,20 +203,13 @@ export function TopBar({ onUpgrade }: TopBarProps) {
           <span>📖</span>
           <span>Guide</span>
         </button>
-        <button
-          onClick={() => setGuideOpen(true)}
-          className="sm:hidden inline-flex items-center justify-center rounded-xl px-2.5 py-2 border border-white/15 hover:bg-white/5 text-base"
-          aria-label="How to play"
-        >
-          📖
-        </button>
         <a
           href="https://t.me/battleshipNfactorial"
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Join Telegram community"
           title="Join the Telegram community"
-          className="inline-flex items-center justify-center rounded-xl px-2.5 py-2 text-base sm:text-sm font-semibold"
+          className="hidden sm:inline-flex items-center justify-center rounded-xl px-2.5 py-2 text-sm font-semibold"
           style={{
             color: "#2AABEE",
             border: "1px solid rgba(42,171,238,0.5)",
@@ -241,7 +228,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         </button>
         <button
           onClick={toggle}
-          className="rounded-xl px-2.5 py-2 sm:px-3 border border-white/15 hover:bg-white/5 text-sm"
+          className="hidden sm:inline-flex rounded-xl px-3 py-2 border border-white/15 hover:bg-white/5 text-sm"
           aria-label="Toggle theme"
         >
           {theme === "dark" ? "☾" : "☀"}
@@ -250,11 +237,12 @@ export function TopBar({ onUpgrade }: TopBarProps) {
           <button
             onClick={() => setAuthOpen((o) => !o)}
             suppressHydrationWarning
-            className="rounded-xl px-2 py-2 sm:px-3 border border-white/15 hover:bg-white/5 text-sm flex items-center gap-2"
+            aria-label={signedIn ? "Account menu" : "Sign in"}
+            className="rounded-xl h-9 sm:h-auto w-9 sm:w-auto sm:px-3 sm:py-2 border border-white/15 hover:bg-white/5 text-sm flex items-center justify-center sm:justify-start gap-2"
           >
             <span
               suppressHydrationWarning
-              className="w-6 h-6 rounded-full bg-gradient-to-br from-accent-3 to-accent-2 grid place-items-center text-xs font-bold"
+              className="w-6 h-6 rounded-full bg-gradient-to-br from-accent-3 to-accent-2 grid place-items-center text-xs font-bold shrink-0"
             >
               {(profile.username[0] ?? "C").toUpperCase()}
             </span>
@@ -262,14 +250,16 @@ export function TopBar({ onUpgrade }: TopBarProps) {
               {signedIn ? profile.username : "Sign in"}
             </span>
             {signedIn && (
-              <ClanTag username={username} fetch />
+              <span className="hidden sm:inline">
+                <ClanTag username={username} fetch />
+              </span>
             )}
           </button>
           {authOpen && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="absolute right-0 mt-2 w-80 glass rounded-2xl p-4 z-50"
+              className="absolute right-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] glass rounded-2xl p-4 z-50 max-h-[calc(100vh-5rem)] overflow-y-auto"
             >
               {!editingProfile ? (
                 <>
@@ -301,6 +291,75 @@ export function TopBar({ onUpgrade }: TopBarProps) {
                       <div suppressHydrationWarning className="text-sm font-bold" style={{ color: "#fbbf24" }}>
                         ⚓ {coins.toLocaleString()}
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Mobile-only quick navigation. On larger screens these live in the header. */}
+                  <div className="sm:hidden mt-3">
+                    <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim mb-2">
+                      Navigate
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <Link
+                        href="/clans"
+                        onClick={() => setAuthOpen(false)}
+                        className="rounded-lg border border-white/10 bg-black/30 hover:bg-white/5 px-2 py-2 text-xs font-semibold flex flex-col items-center gap-1"
+                      >
+                        <span className="text-base leading-none">⚑</span>
+                        <span>Clans</span>
+                      </Link>
+                      <Link
+                        href="/market"
+                        onClick={() => setAuthOpen(false)}
+                        className="rounded-lg border border-white/10 bg-black/30 hover:bg-white/5 px-2 py-2 text-xs font-semibold flex flex-col items-center gap-1"
+                      >
+                        <span className="text-base leading-none">🛒</span>
+                        <span>Market</span>
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setAuthOpen(false);
+                          setGuideOpen(true);
+                        }}
+                        className="rounded-lg border border-white/10 bg-black/30 hover:bg-white/5 px-2 py-2 text-xs font-semibold flex flex-col items-center gap-1"
+                      >
+                        <span className="text-base leading-none">📖</span>
+                        <span>Guide</span>
+                      </button>
+                      <a
+                        href="https://t.me/battleshipNfactorial"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => setAuthOpen(false)}
+                        className="rounded-lg px-2 py-2 text-xs font-semibold flex flex-col items-center gap-1"
+                        style={{
+                          color: "#2AABEE",
+                          border: "1px solid rgba(42,171,238,0.5)",
+                          background: "rgba(42,171,238,0.10)",
+                        }}
+                      >
+                        <span className="text-base leading-none">✈</span>
+                        <span>Telegram</span>
+                      </a>
+                      <button
+                        onClick={toggle}
+                        className="rounded-lg border border-white/10 bg-black/30 hover:bg-white/5 px-2 py-2 text-xs font-semibold flex flex-col items-center gap-1"
+                        aria-label="Toggle theme"
+                      >
+                        <span className="text-base leading-none">{theme === "dark" ? "☾" : "☀"}</span>
+                        <span>{theme === "dark" ? "Dark" : "Light"}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAuthOpen(false);
+                          onUpgrade();
+                        }}
+                        suppressHydrationWarning
+                        className="neon-btn rounded-lg px-2 py-2 text-xs font-semibold flex flex-col items-center gap-1"
+                      >
+                        <span className="text-base leading-none">✦</span>
+                        <span>{profile.pro ? "Pro" : "Upgrade"}</span>
+                      </button>
                     </div>
                   </div>
 
