@@ -35,6 +35,56 @@ export interface LocalProfile {
   // ── powers / secret word mode ──
   powers?: { type: string; count: number }[];
   secretWordWins?: number;
+  decodedWords?: string[];
+  customShipUnlocked?: boolean;
+  customShip?: CustomShip | null;
+}
+
+export type CustomShipPower =
+  | "precision"
+  | "airstrike"
+  | "radar"
+  | "shield"
+  | "smokescreen";
+
+export interface CustomShip {
+  type: "destroyer" | "submarine" | "cruiser" | "battleship" | "carrier";
+  name: string;
+  skin: string;
+  powers: CustomShipPower[]; // up to 3; index 0 is free, 1-2 are premium slots
+  badge: string;
+  createdAt: number;
+}
+
+const VALID_POWERS = new Set<CustomShipPower>([
+  "precision",
+  "airstrike",
+  "radar",
+  "shield",
+  "smokescreen",
+]);
+
+export function backfillCustomShip(raw: unknown): CustomShip | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown> & { power?: unknown; powers?: unknown };
+  const list = Array.isArray(r.powers)
+    ? (r.powers as unknown[])
+    : typeof r.power === "string"
+      ? [r.power]
+      : [];
+  const powers = list
+    .filter((p): p is CustomShipPower =>
+      typeof p === "string" && VALID_POWERS.has(p as CustomShipPower)
+    )
+    .slice(0, 3);
+  return {
+    type: (r.type as CustomShip["type"]) ?? "destroyer",
+    name: typeof r.name === "string" ? r.name : "",
+    skin: typeof r.skin === "string" ? r.skin : "cyber-blue",
+    badge: typeof r.badge === "string" ? r.badge : "⚓",
+    createdAt: typeof r.createdAt === "number" ? r.createdAt : Date.now(),
+    powers,
+  };
 }
 
 export interface LeaderboardEntry {
@@ -71,6 +121,9 @@ const DEFAULT_PROFILE: LocalProfile = {
   activeBoardTheme: "default",
   powers: [],
   secretWordWins: 0,
+  decodedWords: [],
+  customShipUnlocked: false,
+  customShip: null,
 };
 
 export const defaultStats = (): PlayerStats => ({
@@ -95,6 +148,9 @@ function backfillProfile(p: Partial<LocalProfile>): LocalProfile {
     activeBoardTheme: p.activeBoardTheme ?? "default",
     powers: Array.isArray(p.powers) ? p.powers : [],
     secretWordWins: p.secretWordWins ?? 0,
+    decodedWords: Array.isArray(p.decodedWords) ? p.decodedWords : [],
+    customShipUnlocked: !!p.customShipUnlocked,
+    customShip: backfillCustomShip(p.customShip),
   } as LocalProfile;
 }
 
@@ -370,6 +426,9 @@ export async function syncCloudProfile(profile: LocalProfile) {
         level: profile.level ?? 1,
         powers: profile.powers ?? [],
         secret_word_wins: profile.secretWordWins ?? 0,
+        decoded_words: profile.decodedWords ?? [],
+        custom_ship_unlocked: !!profile.customShipUnlocked,
+        custom_ship: profile.customShip ?? null,
         referral_code: profile.username?.toLowerCase() ?? null,
         referred_by: profile.referredBy ?? null,
         last_daily_win_at: profile.lastDailyWinAt
@@ -391,7 +450,7 @@ export async function pullCloudProfile(): Promise<Partial<LocalProfile> | null> 
   const { data, error } = await sb
     .from("profiles")
     .select(
-      "username,city,pro,ship_skin,active_board_theme,active_badge,owned_cosmetics,coins,xp,level,powers,secret_word_wins,referred_by,last_daily_win_at"
+      "username,city,pro,ship_skin,active_board_theme,active_badge,owned_cosmetics,coins,xp,level,powers,secret_word_wins,decoded_words,custom_ship_unlocked,custom_ship,referred_by,last_daily_win_at"
     )
     .eq("id", uid)
     .maybeSingle();
@@ -411,6 +470,11 @@ export async function pullCloudProfile(): Promise<Partial<LocalProfile> | null> 
       ? (data.powers as { type: string; count: number }[])
       : [],
     secretWordWins: (data.secret_word_wins as number | null) ?? 0,
+    decodedWords: Array.isArray(data.decoded_words)
+      ? (data.decoded_words as string[])
+      : [],
+    customShipUnlocked: !!data.custom_ship_unlocked,
+    customShip: backfillCustomShip(data.custom_ship),
     referredBy: data.referred_by ?? undefined,
     lastDailyWinAt: data.last_daily_win_at
       ? new Date(data.last_daily_win_at).getTime()

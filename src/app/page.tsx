@@ -9,6 +9,8 @@ import { UpgradeModal } from "@/components/UpgradeModal";
 import { TournamentBanner } from "@/components/TournamentBanner";
 import { SocialPanel } from "@/components/SocialPanel";
 import { ArsenalPanel } from "@/components/ArsenalPanel";
+import { SecretWordProgress } from "@/components/SecretWordProgress";
+import { CustomShipCard } from "@/components/CustomShipCard";
 import { MobilePanels } from "@/components/MobilePanels";
 import { GameRecord, PlayerStats } from "@/lib/game/types";
 import {
@@ -76,6 +78,8 @@ export default function Home() {
             onClearAll={handleClearAll}
           />
           <ArsenalPanel />
+          <SecretWordProgress />
+          <CustomShipCard />
           <Leaderboard />
           <SocialPanel />
           <button

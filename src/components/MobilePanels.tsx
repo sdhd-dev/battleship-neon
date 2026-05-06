@@ -6,11 +6,13 @@ import { StatsPanel } from "./StatsPanel";
 import { ArsenalPanel } from "./ArsenalPanel";
 import { Leaderboard } from "./Leaderboard";
 import { SocialPanel } from "./SocialPanel";
+import { SecretWordProgress } from "./SecretWordProgress";
 import { GameRecord, PlayerStats } from "@/lib/game/types";
 
 const TABS = [
   { id: "stats", label: "Stats", icon: "📊" },
   { id: "arsenal", label: "Arsenal", icon: "⚡" },
+  { id: "words", label: "Words", icon: "🔤" },
   { id: "ranks", label: "Ranks", icon: "🏆" },
   { id: "friends", label: "Friends", icon: "👥" },
 ] as const;
@@ -120,6 +122,7 @@ export function MobilePanels({ stats, history, onDeleteEntry, onClearAll }: Prop
               />
             )}
             {t.id === "arsenal" && <ArsenalPanel />}
+            {t.id === "words" && <SecretWordProgress />}
             {t.id === "ranks" && <Leaderboard />}
             {t.id === "friends" && <SocialPanel />}
           </div>

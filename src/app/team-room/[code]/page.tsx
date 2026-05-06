@@ -30,7 +30,7 @@ export default function TeamRoomPage({
   }, []);
 
   return (
-    <div className="bg-field min-h-screen">
+    <div className="bg-field min-h-screen overflow-x-hidden max-w-[100vw]">
       <TopBar onUpgrade={() => setUpgradeOpen(true)} />
       <main className="relative z-10 max-w-7xl mx-auto p-4 sm:p-6 pb-16">
         {!playerId ? (

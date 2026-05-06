@@ -89,7 +89,7 @@ export function SecretWordMode({ onExit }: Props) {
   const [failedShots, setFailedShots] = useState(0);
   const [guessesLeft, setGuessesLeft] = useState(MAX_GUESSES);
   const [guessInput, setGuessInput] = useState("");
-  const [statusMsg, setStatusMsg] = useState<string>("Decode the word — every hit reveals a letter.");
+  const [statusMsg, setStatusMsg] = useState<string>("Hidden word — collect letters and guess it yourself.");
   const [toast, setToast] = useState<string | null>(null);
   const [rouletteOpen, setRouletteOpen] = useState(false);
   const [rouletteSpins, setRouletteSpins] = useState(1);
@@ -123,11 +123,11 @@ export function SecretWordMode({ onExit }: Props) {
     if (phase !== "playing") return;
     setPhase("won");
     setStatusMsg("🏆 Word decoded! Spinning for loot…");
-    const updated = bumpSecretWordWins();
+    const updated = bumpSecretWordWins(word);
     const spins = spinsForWins(updated.secretWordWins ?? 1);
     setRouletteSpins(spins);
     setRouletteOpen(true);
-  }, [phase]);
+  }, [phase, word]);
 
   const finishLoss = useCallback(
     (msg: string) => {
@@ -371,8 +371,6 @@ export function SecretWordMode({ onExit }: Props) {
             activePower={activePower}
             onSelect={handleSelectPower}
             disabled={phase !== "playing"}
-            show={["precision", "airstrike", "radar"]}
-            label="Offensive only"
           />
           {activePower === "airstrike" && (
             <div className="flex justify-end items-center gap-2">
@@ -391,7 +389,7 @@ export function SecretWordMode({ onExit }: Props) {
           <div className="glass rounded-2xl p-4">
             <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">Submit a guess</div>
             <p className="text-xs text-fg-dim mt-1">
-              Wrong guess costs 3 from the failed shot allowance. Two wrong guesses ends the run.
+              Track the letters you uncover and assemble the word. Wrong guess costs 3 from the failed shot allowance. Two wrong guesses ends the run.
             </p>
             <div className="flex gap-2 mt-3 min-w-0">
               <input
@@ -400,7 +398,7 @@ export function SecretWordMode({ onExit }: Props) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleSubmitGuess();
                 }}
-                placeholder={`${word.length}-letter word`}
+                placeholder="Type your guess"
                 disabled={guessDisabled}
                 maxLength={12}
                 className={clsx(
@@ -429,7 +427,10 @@ export function SecretWordMode({ onExit }: Props) {
           <div className="glass rounded-2xl p-4">
             <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">Mission rules</div>
             <ul className="text-xs text-fg-dim mt-2 grid gap-1 list-disc list-inside">
-              <li>Hits on letter cells unveil the cipher.</li>
+              <li>The word is fully secret — length and order are hidden.</li>
+              <li>Hits on letter cells add the letter to your pool.</li>
+              <li>Write the letters down and assemble the word yourself.</li>
+              <li>Submit your guess — only a match reveals the word.</li>
               <li>Misses use up your 35 failed shots.</li>
               <li>Two wrong guesses = mission failed.</li>
               <li>Win to spin the roulette for a battle power.</li>
@@ -487,15 +488,15 @@ function SecretHud({
   statusMsg: string;
   phase: Phase;
 }) {
-  // Build display from letters[] keyed by index.
-  const slots = useMemo(() => {
-    const out: Array<{ ch: string; revealed: boolean }> = [];
-    for (let i = 0; i < word.length; i++) {
-      const lc = letters.find((l) => l.index === i);
-      out.push({ ch: word[i], revealed: !!lc?.revealed });
-    }
-    return out;
-  }, [word, letters]);
+  // Found letters as an alphabetical pool — no position info leaked.
+  const foundLetters = useMemo(
+    () =>
+      letters
+        .filter((l) => l.revealed)
+        .map((l) => l.letter)
+        .sort(),
+    [letters]
+  );
 
   const lowFails = failedRemaining <= 4;
 
@@ -530,34 +531,34 @@ function SecretHud({
 
       <div className="relative z-10">
         <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim text-center">
-          Cipher
+          Letters Found ({foundLetters.length})
         </div>
-        <div className="flex justify-center gap-1 sm:gap-2 mt-2 flex-wrap">
-          {slots.map((s, i) => (
-            <motion.div
-              key={i}
-              animate={{
-                scale: s.revealed ? [1.4, 1] : 1,
-              }}
-              transition={{ duration: 0.4 }}
-              className={clsx(
-                "w-7 h-10 sm:w-12 sm:h-16 rounded-xl border grid place-items-center font-mono font-extrabold text-lg sm:text-3xl",
-                s.revealed
-                  ? "border-accent/60 bg-accent/10"
-                  : "border-white/15 bg-black/30"
-              )}
-              style={
-                s.revealed
-                  ? { color: "var(--accent)", textShadow: "0 0 14px var(--accent)" }
-                  : undefined
-              }
+        <div className="flex justify-center gap-1 sm:gap-2 mt-2 flex-wrap min-h-[40px] sm:min-h-[64px]">
+          {phase !== "playing" ? (
+            <div
+              className="font-mono font-extrabold text-lg sm:text-3xl tracking-[0.3em]"
+              style={{ color: "var(--accent)", textShadow: "0 0 14px var(--accent)" }}
             >
-              {s.revealed || phase !== "playing" ? s.ch : ""}
-              {!s.revealed && phase === "playing" && (
-                <span className="text-fg-dim">_</span>
-              )}
-            </motion.div>
-          ))}
+              {word}
+            </div>
+          ) : foundLetters.length === 0 ? (
+            <div className="text-xs sm:text-sm text-fg-dim italic self-center">
+              Hit ship cells to uncover letters — write them down and decode the word.
+            </div>
+          ) : (
+            foundLetters.map((ch, i) => (
+              <motion.div
+                key={`${ch}-${i}`}
+                initial={{ scale: 1.4, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.4 }}
+                className="w-7 h-10 sm:w-12 sm:h-16 rounded-xl border border-accent/60 bg-accent/10 grid place-items-center font-mono font-extrabold text-lg sm:text-3xl"
+                style={{ color: "var(--accent)", textShadow: "0 0 14px var(--accent)" }}
+              >
+                {ch}
+              </motion.div>
+            ))
+          )}
         </div>
       </div>
     </div>

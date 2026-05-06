@@ -17,9 +17,22 @@ interface ShipPlacementProps {
   onChange: (ships: Ship[]) => void;
   onConfirm: () => void;
   onBack?: () => void;
+  customShipType?: ShipType | null;
+  customShipName?: string | null;
+  deployCustom?: boolean;
+  onDeployCustomChange?: (next: boolean) => void;
 }
 
-export function ShipPlacement({ ships, onChange, onConfirm, onBack }: ShipPlacementProps) {
+export function ShipPlacement({
+  ships,
+  onChange,
+  onConfirm,
+  onBack,
+  customShipType = null,
+  customShipName = null,
+  deployCustom = false,
+  onDeployCustomChange,
+}: ShipPlacementProps) {
   const [selectedType, setSelectedType] = useState<ShipType | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [orientation, setOrientation] = useState<Orientation>("H");
@@ -123,10 +136,13 @@ export function ShipPlacement({ ships, onChange, onConfirm, onBack }: ShipPlacem
             Rotate · {orientation === "H" ? "↔ Horizontal" : "↕ Vertical"}
           </button>
           <button
-            onClick={() => onChange(autoPlace())}
+            onClick={() => {
+              const skip = customShipType && deployCustom;
+              onChange(autoPlace(skip ? { excludeType: customShipType } : undefined));
+            }}
             className="neon-btn rounded-xl px-3 py-2 text-sm"
           >
-            ⚡ Auto-Place
+            {customShipType && deployCustom ? "⚡ Auto-Place (skip custom)" : "⚡ Auto-Place"}
           </button>
           <button
             onClick={() => onChange([])}
@@ -136,11 +152,37 @@ export function ShipPlacement({ ships, onChange, onConfirm, onBack }: ShipPlacem
           </button>
         </div>
 
+        {customShipType && onDeployCustomChange && (
+          <div className="shrink-0 rounded-xl border border-accent-3/40 bg-accent-3/10 px-3 py-2 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.3em] text-fg-dim">Custom Ship</div>
+              <div className="text-sm font-bold truncate">{customShipName ?? "Custom"}</div>
+              <div className="text-[11px] text-fg-dim leading-snug">
+                {deployCustom
+                  ? "Place this slot yourself to use your ship."
+                  : "Skipped — using a regular ship."}
+              </div>
+            </div>
+            <button
+              onClick={() => onDeployCustomChange(!deployCustom)}
+              className={clsx(
+                "rounded-full px-3 py-1.5 text-xs font-bold border transition-all shrink-0",
+                deployCustom
+                  ? "border-accent-3 bg-accent-3/20 text-accent-3"
+                  : "border-white/20 text-fg-dim hover:border-white/40"
+              )}
+            >
+              {deployCustom ? "Deployed · ON" : "OFF"}
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-col gap-2 xl:flex-1 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
           <div className="text-xs uppercase tracking-[0.3em] text-fg-dim">Fleet</div>
           {SHIP_DEFS.map((def) => {
             const placed = ships.find((s) => s.type === def.type);
             const active = selectedType === def.type;
+            const isCustomSlot = customShipType === def.type && deployCustom;
             return (
               <motion.button
                 key={def.type}
@@ -155,15 +197,24 @@ export function ShipPlacement({ ships, onChange, onConfirm, onBack }: ShipPlacem
                 }}
                 className={clsx(
                   "rounded-xl px-3 py-2 flex items-center justify-between text-left border transition-all",
-                  placed
-                    ? "border-accent/50 bg-accent/10"
-                    : active
-                      ? "border-accent bg-accent/15 shadow-[0_0_18px_rgba(0,240,255,0.4)]"
-                      : "border-white/10 hover:border-white/30"
+                  isCustomSlot && !placed
+                    ? "border-accent-3 bg-accent-3/15 shadow-[0_0_18px_rgba(94,234,212,0.35)]"
+                    : placed
+                      ? "border-accent/50 bg-accent/10"
+                      : active
+                        ? "border-accent bg-accent/15 shadow-[0_0_18px_rgba(0,240,255,0.4)]"
+                        : "border-white/10 hover:border-white/30"
                 )}
               >
                 <div>
-                  <div className="font-semibold">{def.name}</div>
+                  <div className="font-semibold">
+                    {def.name}
+                    {isCustomSlot && (
+                      <span className="ml-2 text-[10px] uppercase tracking-[0.2em] text-accent-3">
+                        Custom
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-fg-dim">{def.length} cells</div>
                 </div>
                 <div className="flex gap-1">

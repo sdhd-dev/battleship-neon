@@ -122,6 +122,16 @@ export function Board({
                 !disabled && onCellClick && !shotState && "cursor-crosshair"
               );
 
+              const cellStyle: React.CSSProperties = { position: "relative" };
+              if (showShip && ship?.customSkin) {
+                cellStyle.background = ship.customSkin;
+                cellStyle.boxShadow = "inset 0 0 8px rgba(0,0,0,0.35)";
+              }
+              const isShipHead = showShip && ship && shipCells(ship)[0][0] === r && shipCells(ship)[0][1] === c;
+              const tooltip = ship?.customName
+                ? `${ship.customBadge ?? ""} ${ship.customName} (${ship.type})`
+                : undefined;
+
               return (
                 <motion.div
                   key={k}
@@ -131,10 +141,20 @@ export function Board({
                   onClick={() => !disabled && onCellClick?.(r, c)}
                   onMouseEnter={() => onCellHover?.(r, c)}
                   onMouseLeave={() => onCellLeave?.()}
-                  style={{ position: "relative" }}
+                  style={cellStyle}
+                  title={tooltip}
                 >
                   <CellMark state={shotState} />
                   {hasArrow && <span className="tut-arrow">▼</span>}
+                  {isShipHead && ship?.customBadge && !shotState && (
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 grid place-items-center text-[10px] sm:text-xs pointer-events-none"
+                      style={{ filter: "drop-shadow(0 0 4px rgba(0,0,0,0.7))" }}
+                    >
+                      {ship.customBadge}
+                    </span>
+                  )}
                   {isScanned && !shotState && (
                     <motion.div
                       aria-hidden

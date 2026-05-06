@@ -15,6 +15,7 @@ import {
 import { buildInviteUrl, fetchReferralStats } from "@/lib/referrals";
 import { ClanTag } from "./ClanTag";
 import { POWER_DEFS, readInventory } from "@/lib/powers";
+import { HowToPlay } from "./HowToPlay";
 
 interface TopBarProps {
   onUpgrade: () => void;
@@ -26,6 +27,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
   const { profile, setProfile, username, signOut, cloudEnabled, isGuest } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [referralStats, setReferralStats] = useState<{ count: number; coinsEarned: number }>({
     count: 0,
     coinsEarned: 0,
@@ -184,6 +186,21 @@ export function TopBar({ onUpgrade }: TopBarProps) {
         >
           ⚑
         </Link>
+        <button
+          onClick={() => setGuideOpen(true)}
+          className="hidden sm:inline-flex items-center gap-1 rounded-xl px-3 py-2 border border-white/15 hover:bg-white/5 text-sm font-semibold"
+          aria-label="How to play"
+        >
+          <span>📖</span>
+          <span>Guide</span>
+        </button>
+        <button
+          onClick={() => setGuideOpen(true)}
+          className="sm:hidden inline-flex items-center justify-center rounded-xl px-2.5 py-2 border border-white/15 hover:bg-white/5 text-base"
+          aria-label="How to play"
+        >
+          📖
+        </button>
         <button
           onClick={onUpgrade}
           suppressHydrationWarning
@@ -385,6 +402,7 @@ export function TopBar({ onUpgrade }: TopBarProps) {
           )}
         </div>
       </div>
+      <HowToPlay open={guideOpen} onClose={() => setGuideOpen(false)} />
     </header>
   );
 }

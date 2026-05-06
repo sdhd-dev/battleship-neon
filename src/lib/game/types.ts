@@ -27,6 +27,11 @@ export interface Ship {
   orientation: Orientation;
   hits: number;
   sunk: boolean;
+  // Optional custom-ship metadata (rendered on the board for the
+  // captain's signature vessel — see /workshop).
+  customName?: string;
+  customSkin?: string; // gradient css value
+  customBadge?: string;
 }
 
 export type CellState = "empty" | "ship" | "miss" | "hit" | "sunk";

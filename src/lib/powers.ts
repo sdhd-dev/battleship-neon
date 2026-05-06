@@ -124,6 +124,8 @@ export function consumePower(type: PowerType): { ok: boolean; profile: LocalProf
 
 // ── Secret Word Mode helpers ─────────────────────────────────
 
+// Exactly 10 words. Same list used by the progress tracker so that
+// "decoded N/10" stays accurate.
 export const SECRET_WORDS = [
   "BATTLE",
   "CANNON",
@@ -135,17 +137,9 @@ export const SECRET_WORDS = [
   "STRIKE",
   "ANCHOR",
   "SHADOW",
-  "MARINE",
-  "SNIPER",
-  "BOMBER",
-  "SHIELD",
-  "ROCKET",
-  "TURRET",
-  "PATROL",
-  "COMBAT",
-  "CAPTAIN",
-  "ADMIRAL",
-];
+] as const;
+
+export const TOTAL_SECRET_WORDS = SECRET_WORDS.length;
 
 export function pickSecretWord(): string {
   return SECRET_WORDS[Math.floor(Math.random() * SECRET_WORDS.length)];
@@ -274,13 +268,62 @@ export function applyRoulettePrize(prize: RoulettePrize): AppliedAward {
   return { prize };
 }
 
-export function bumpSecretWordWins(): LocalProfile {
+export function bumpSecretWordWins(decodedWord?: string): LocalProfile {
   const profile = loadProfile();
+  const prev = Array.isArray(profile.decodedWords) ? profile.decodedWords : [];
+  let decodedWords = prev;
+  if (decodedWord) {
+    const upper = decodedWord.toUpperCase();
+    if (
+      (SECRET_WORDS as readonly string[]).includes(upper) &&
+      !prev.includes(upper)
+    ) {
+      decodedWords = [...prev, upper];
+    }
+  }
+  const customShipUnlocked =
+    profile.customShipUnlocked || decodedWords.length >= TOTAL_SECRET_WORDS;
   const next: LocalProfile = {
     ...profile,
     secretWordWins: (profile.secretWordWins ?? 0) + 1,
+    decodedWords,
+    customShipUnlocked,
   };
   saveProfile(next);
   void syncCloudProfile(next);
   return next;
+}
+
+export function decodedWordsCount(profile: LocalProfile): number {
+  const list = Array.isArray(profile.decodedWords) ? profile.decodedWords : [];
+  return list.filter((w) => (SECRET_WORDS as readonly string[]).includes(w))
+    .length;
+}
+
+export type RedeemResult =
+  | { ok: true; word: string; alreadyHad: boolean; profile: LocalProfile }
+  | { ok: false; reason: "empty" | "unknown" };
+
+// Manually credit a typed secret word to the profile. No win bump — this is
+// the "I know the codes" path that lives on the workshop lock screen.
+export function redeemSecretWord(input: string): RedeemResult {
+  const upper = input.trim().toUpperCase();
+  if (!upper) return { ok: false, reason: "empty" };
+  if (!(SECRET_WORDS as readonly string[]).includes(upper)) {
+    return { ok: false, reason: "unknown" };
+  }
+  const profile = loadProfile();
+  const prev = Array.isArray(profile.decodedWords) ? profile.decodedWords : [];
+  const alreadyHad = prev.includes(upper);
+  const decodedWords = alreadyHad ? prev : [...prev, upper];
+  const customShipUnlocked =
+    profile.customShipUnlocked || decodedWords.length >= TOTAL_SECRET_WORDS;
+  const next: LocalProfile = {
+    ...profile,
+    decodedWords,
+    customShipUnlocked,
+  };
+  saveProfile(next);
+  void syncCloudProfile(next);
+  return { ok: true, word: upper, alreadyHad, profile: next };
 }

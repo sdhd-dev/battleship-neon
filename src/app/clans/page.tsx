@@ -71,9 +71,9 @@ export default function ClansPage() {
   };
 
   return (
-    <div className="bg-field min-h-screen">
+    <div className="bg-field min-h-screen overflow-x-hidden max-w-[100vw]">
       <TopBar onUpgrade={() => setUpgradeOpen(true)} />
-      <main className="relative z-10 max-w-6xl mx-auto p-4 sm:p-6 grid gap-6 pb-16">
+      <main className="relative z-10 max-w-6xl mx-auto px-4 py-4 sm:p-6 grid gap-6 pb-16">
         <header>
           <div className="text-[10px] uppercase tracking-[0.4em] text-fg-dim">
             Naval Alliances

@@ -90,11 +90,17 @@ export function removeShip(ships: Ship[], shipId: string): Ship[] {
   return ships.filter((s) => s.id !== shipId);
 }
 
-export function autoPlace(): Ship[] {
+export function autoPlace(options?: { excludeType?: ShipType | null; existing?: Ship[] }): Ship[] {
+  const exclude = options?.excludeType ?? null;
+  const baseDefs = SHIP_DEFS.filter((d) => d.type !== exclude);
+  const baseExisting = options?.existing ?? [];
+  // If existing ships are passed, only place defs that aren't already represented.
+  const existingTypes = new Set(baseExisting.map((s) => s.type));
+  const defsToPlace = baseDefs.filter((d) => !existingTypes.has(d.type));
   for (let attempt = 0; attempt < 200; attempt++) {
-    let ships: Ship[] = [];
+    let ships: Ship[] = [...baseExisting];
     let ok = true;
-    for (const def of SHIP_DEFS) {
+    for (const def of defsToPlace) {
       let placed = false;
       for (let tries = 0; tries < 200; tries++) {
         const orientation: Orientation = Math.random() < 0.5 ? "H" : "V";
@@ -114,8 +120,7 @@ export function autoPlace(): Ship[] {
     }
     if (ok) return ships;
   }
-  // Should rarely happen — return whatever we have
-  return [];
+  return baseExisting;
 }
 
 export interface AttackResult {

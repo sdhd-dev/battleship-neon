@@ -33,7 +33,9 @@ import { TipOfTheDay } from "./TipOfTheDay";
 import { SecretWordMode } from "./SecretWordMode";
 import { loadProfile } from "@/lib/storage";
 import { PowerBar } from "./PowerBar";
-import { PowerType, consumePower } from "@/lib/powers";
+import { POWER_DEFS, PowerType, addPower, consumePower } from "@/lib/powers";
+import { applyCustomShip } from "@/lib/workshop";
+import type { CustomShip } from "@/lib/storage";
 
 type Phase = "menu" | "placing" | "playing" | "over" | "training" | "secret";
 
@@ -83,6 +85,9 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
   const [smokeTurns, setSmokeTurns] = useState(0);
   const [scannedCells, setScannedCells] = useState<Array<[number, number]>>([]);
   const [retreatConfirm, setRetreatConfirm] = useState(false);
+  const [customShip, setCustomShip] = useState<CustomShip | null>(null);
+  const [deployCustom, setDeployCustom] = useState(false);
+  const customHitTriggered = useRef(false);
   const gameRecorded = useRef(false);
 
   useEffect(() => {
@@ -130,13 +135,19 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
     setMode(m);
     setDifficulty(d);
     setPlayerShips([]);
+    const cs = loadProfile().customShip ?? null;
+    setCustomShip(cs);
+    setDeployCustom(!!cs);
     setPhase("placing");
   };
 
   const beginGame = useCallback(() => {
     const aiShips = autoPlace();
+    const playerShipsWithCustom =
+      customShip && deployCustom ? applyCustomShip(playerShips, customShip) : playerShips;
+    customHitTriggered.current = false;
     setAiBoard({ ships: aiShips, shots: new Map() });
-    setPlayerBoard({ ships: playerShips, shots: new Map() });
+    setPlayerBoard({ ships: playerShipsWithCustom, shots: new Map() });
     setAIState(createAIState(difficulty, SHIP_DEFS.map((d) => d.length)));
     setTurn("player");
     setWinner(null);
@@ -154,7 +165,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
     setStartedAt(t);
     setNow(t);
     setPhase("playing");
-  }, [difficulty, playerShips]);
+  }, [customShip, deployCustom, difficulty, playerShips]);
 
   const finishGame = useCallback(
     (winningSide: "player" | "ai", message: string) => {
@@ -410,6 +421,26 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
       } else {
         setStatusMsg(`The enemy missed at ${labelOf(r, c)}. Your turn.`);
       }
+      // Custom ship: when the enemy first hits any cell of the deployed custom
+      // ship, deploy its picked superpowers into the player's inventory.
+      if (
+        (result.state === "hit" || result.state === "sunk") &&
+        !customHitTriggered.current &&
+        customShip &&
+        deployCustom
+      ) {
+        const hitShip = playerBoard.ships.find((s) => s.id === result.shipId);
+        if (hitShip?.customName) {
+          customHitTriggered.current = true;
+          for (const p of customShip.powers) addPower(p, 1);
+          if (customShip.powers.length > 0) {
+            const names = customShip.powers
+              .map((p) => `${POWER_DEFS[p].icon} ${POWER_DEFS[p].name}`)
+              .join(" · ");
+            setToast(`⚓ ${customShip.name} struck — powers deployed: ${names}`);
+          }
+        }
+      }
       setSmokeTurns((t) => {
         if (t <= 0) return t;
         const next = t - 1;
@@ -427,7 +458,7 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [aiState, finishGame, phase, playerBoard, pendingShield, smokeCells, turn, winner]);
+  }, [aiState, customShip, deployCustom, finishGame, phase, playerBoard, pendingShield, smokeCells, turn, winner]);
 
   const reset = () => {
     setPhase("menu");
@@ -516,6 +547,15 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
               onChange={setPlayerShips}
               onConfirm={beginGame}
               onBack={() => setPhase("menu")}
+              customShipType={customShip?.type ?? null}
+              customShipName={customShip ? `${customShip.badge} ${customShip.name}` : null}
+              deployCustom={deployCustom}
+              onDeployCustomChange={(next) => {
+                setDeployCustom(next);
+                if (customShip) {
+                  setPlayerShips((cur) => cur.filter((s) => s.type !== customShip.type));
+                }
+              }}
             />
           </motion.div>
         )}
