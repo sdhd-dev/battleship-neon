@@ -1,6 +1,6 @@
 import { addPower } from "./powers";
 import { CustomShip, CustomShipPower, LocalProfile } from "./storage";
-import { Ship } from "./game/types";
+import { Orientation, Ship, ShipType } from "./game/types";
 
 export const MAX_SHIP_POWERS = 3;
 export const FREE_POWER_SLOTS = 1;
@@ -194,4 +194,38 @@ export function grantCustomShipPower(profile: LocalProfile): void {
   for (const p of profile.customShip.powers) {
     addPower(p, 1);
   }
+}
+
+// Reconstruct a sunk Ship from its cell list — used in online modes when
+// a sunk-result broadcast arrives and we want to render the rival's
+// custom skin/badge on the attacker's view of the enemy board.
+export function synthesizeSunkShip(
+  cells: Array<[number, number]>,
+  type: ShipType | undefined,
+  meta: {
+    customName?: string;
+    customSkin?: string;
+    customBadge?: string;
+  } = {}
+): Ship | null {
+  if (!cells || cells.length === 0) return null;
+  const rows = cells.map(([r]) => r);
+  const cols = cells.map(([, c]) => c);
+  const minR = Math.min(...rows);
+  const minC = Math.min(...cols);
+  const orientation: Orientation =
+    rows.every((r) => r === rows[0]) ? "H" : "V";
+  return {
+    id: `enemy_${minR}_${minC}_${cells.length}`,
+    type: type ?? "destroyer",
+    length: cells.length,
+    row: minR,
+    col: minC,
+    orientation,
+    hits: cells.length,
+    sunk: true,
+    customName: meta.customName,
+    customSkin: meta.customSkin,
+    customBadge: meta.customBadge,
+  };
 }

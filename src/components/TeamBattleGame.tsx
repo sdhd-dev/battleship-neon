@@ -16,6 +16,11 @@ import {
 import { allSunk, applyAttack } from "@/lib/game/board";
 import { Board } from "./Board";
 import { ShipPlacement } from "./ShipPlacement";
+import {
+  applyCustomShip,
+  grantCustomShipPower,
+  synthesizeSunkShip,
+} from "@/lib/workshop";
 import { getSupabase, supabaseEnabled } from "@/lib/supabase/client";
 import {
   TeamChatRow,
@@ -37,6 +42,7 @@ import {
   userIdAtTurn,
 } from "@/lib/team-battle";
 import {
+  type CustomShip,
   loadProfile,
   loadStats,
   recordGame,
@@ -71,6 +77,7 @@ export function TeamBattleGame({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>("lobby");
   const [myShips, setMyShips] = useState<Ship[]>([]);
+  const [customShip, setCustomShip] = useState<CustomShip | null>(null);
   const [myReady, setMyReady] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string>("Connecting…");
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
@@ -85,6 +92,7 @@ export function TeamBattleGame({
   const myShipsRef = useRef<Ship[]>([]);
   const boardsRef = useRef<Map<string, BoardData>>(new Map());
   const recordedRef = useRef(false);
+  const customPowersGranted = useRef(false);
   const handleShotRef = useRef<(p: TeamShootPayload) => void>(() => {});
   const handleResultRef = useRef<(p: TeamShotResultPayload) => void>(() => {});
 
@@ -94,6 +102,25 @@ export function TeamBattleGame({
   useEffect(() => {
     boardsRef.current = boards;
   }, [boards]);
+
+  // Pull custom-ship metadata from the local profile so the captain's
+  // signature vessel renders during placement and play in 3v3.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCustomShip(loadProfile().customShip ?? null);
+  }, []);
+  useEffect(() => {
+    if (!customShip) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMyShips((cur) => applyCustomShip(cur, customShip));
+  }, [customShip]);
+
+  const handleShipsChange = useCallback(
+    (next: Ship[]) => {
+      setMyShips(customShip ? applyCustomShip(next, customShip) : next);
+    },
+    [customShip]
+  );
 
   // ── Load / join room ─────────────────────────────────────
   useEffect(() => {
@@ -247,6 +274,13 @@ export function TeamBattleGame({
     if (room.status === "playing" && stage !== "playing" && stage !== "finished") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStage("playing");
+      // Mirror MultiplayerGame: grant custom-ship powers exactly once
+      // when the match actually starts.
+      if (!customPowersGranted.current) {
+        customPowersGranted.current = true;
+        const profile = loadProfile();
+        if (profile.customShip) grantCustomShipPower(profile);
+      }
     } else if (room.status === "finished" && stage !== "finished") {
       setStage("finished");
       finalizeRef.current();
@@ -355,6 +389,9 @@ export function TeamBattleGame({
         c: p.c,
         state: result.state,
         sunkShipCells: sunkCells,
+        sunkShipCustomName: result.sunkShip?.customName,
+        sunkShipCustomSkin: result.sunkShip?.customSkin,
+        sunkShipCustomBadge: result.sunkShip?.customBadge,
         targetSunk,
         teamWiped,
         winnerTeam: winnerTeam ?? undefined,
@@ -376,26 +413,43 @@ export function TeamBattleGame({
         const next = new Map(prev);
         const existing = next.get(p.targetUserId) ?? { ships: [], shots: new Map() };
         const shots = new Map(existing.shots);
+        let ships = existing.ships;
         if (p.state === "sunk" && p.sunkShipCells) {
           for (const [sr, sc] of p.sunkShipCells) shots.set(cellKey(sr, sc), "sunk");
+          // Don't surface custom-ship metadata on the target's own board
+          // — they already have the real ship list. Only reveal it on
+          // teammates'/enemies' views.
+          if (p.targetUserId !== myPlayerId) {
+            const synthesized = synthesizeSunkShip(p.sunkShipCells, undefined, {
+              customName: p.sunkShipCustomName,
+              customSkin: p.sunkShipCustomSkin,
+              customBadge: p.sunkShipCustomBadge,
+            });
+            if (synthesized) {
+              ships = [...existing.ships, synthesized];
+            }
+          }
         } else {
           shots.set(cellKey(p.r, p.c), p.state);
         }
-        next.set(p.targetUserId, { ships: existing.ships, shots });
+        next.set(p.targetUserId, { ships, shots });
         return next;
       });
       setPendingShot(null);
       const target = members.find((m) => m.user_id === p.targetUserId);
       const targetName = target?.username ?? "ally";
       if (p.state === "sunk") {
-        setStatusMsg(`☠ ${targetName}'s ship was sunk!`);
+        const shipLabel = p.sunkShipCustomName
+          ? ` (${p.sunkShipCustomBadge ?? ""} ${p.sunkShipCustomName})`
+          : "";
+        setStatusMsg(`☠ ${targetName}'s ship${shipLabel} was sunk!`);
       } else if (p.state === "hit") {
         setStatusMsg(`💥 Hit on ${targetName}'s board.`);
       } else {
         setStatusMsg(`Miss on ${targetName}'s board.`);
       }
     },
-    [members]
+    [members, myPlayerId]
   );
 
   // Keep ref handlers in sync — the realtime subscription closes over
@@ -535,8 +589,13 @@ export function TeamBattleGame({
         {stage === "placing" && !myReady && (
           <ShipPlacement
             ships={myShips}
-            onChange={setMyShips}
+            onChange={handleShipsChange}
             onConfirm={confirmPlacement}
+            customShipType={customShip?.type ?? null}
+            customShipName={
+              customShip ? `${customShip.badge} ${customShip.name}` : null
+            }
+            deployCustom={!!customShip}
           />
         )}
 

@@ -52,6 +52,11 @@ export interface TeamShotResultPayload {
   c: number;
   state: CellState;
   sunkShipCells?: Array<[number, number]>;
+  // Surface custom-ship metadata only on a sunk hit — keeps opponent boards
+  // dark until the ship actually goes down.
+  sunkShipCustomName?: string;
+  sunkShipCustomSkin?: string;
+  sunkShipCustomBadge?: string;
   targetSunk: boolean;            // all ships of this player sunk
   teamWiped: boolean;             // entire team wiped
   winnerTeam?: 1 | 2;

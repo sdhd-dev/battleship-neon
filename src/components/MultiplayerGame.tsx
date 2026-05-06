@@ -31,6 +31,7 @@ import {
   setRoomStatus,
 } from "@/lib/game/multiplayer";
 import {
+  type CustomShip,
   loadProfile,
   loadStats,
   recordGame,
@@ -39,6 +40,11 @@ import {
   syncCloudLeaderboard,
   syncCloudWeeklyLeaderboard,
 } from "@/lib/storage";
+import {
+  applyCustomShip,
+  grantCustomShipPower,
+  synthesizeSunkShip,
+} from "@/lib/workshop";
 import {
   ApplyRewardResult,
   applyWinReward,
@@ -74,12 +80,16 @@ export function MultiplayerGame({
 
   const [stage, setStage] = useState<Stage>("placing");
   const [myShips, setMyShips] = useState<Ship[]>([]);
+  const [customShip, setCustomShip] = useState<CustomShip | null>(null);
   const [myBoardShots, setMyBoardShots] = useState<Map<string, CellState>>(
     new Map()
   );
   const [enemyShots, setEnemyShots] = useState<Map<string, CellState>>(
     new Map()
   );
+  // Synthesized opponent ships discovered when one of theirs is sunk —
+  // gives the captain a glimpse of the rival's custom vessel after the kill.
+  const [enemyDiscoveredShips, setEnemyDiscoveredShips] = useState<Ship[]>([]);
   const [myReady, setMyReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   const [turn, setTurn] = useState<Side | null>(null);
@@ -104,6 +114,7 @@ export function MultiplayerGame({
   const myBoardShotsRef = useRef<Map<string, CellState>>(new Map());
   const winnerRef = useRef<Side | null>(null);
   const gameRecorded = useRef(false);
+  const customPowersGranted = useRef(false);
 
   useEffect(() => {
     myShipsRef.current = myShips;
@@ -114,6 +125,33 @@ export function MultiplayerGame({
   useEffect(() => {
     winnerRef.current = winner;
   }, [winner]);
+
+  // Hydrate custom-ship metadata from the local profile so placement and
+  // play tag the matching hull with the captain's skin/badge/name.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCustomShip(loadProfile().customShip ?? null);
+  }, []);
+
+  // Re-tag any already-placed ships whenever the custom-ship state arrives
+  // (the profile read happens after first paint, so ships placed during
+  // that brief gap need to be retagged).
+  useEffect(() => {
+    if (!customShip) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMyShips((cur) => applyCustomShip(cur, customShip));
+  }, [customShip]);
+
+  // Wrap fleet edits so freshly placed/moved ships always carry the
+  // custom-ship metadata. Without this, the placement preview and the
+  // "Your Fleet" board show the matching hull with the default skin
+  // until the round starts.
+  const handleShipsChange = useCallback(
+    (next: Ship[]) => {
+      setMyShips(customShip ? applyCustomShip(next, customShip) : next);
+    },
+    [customShip]
+  );
 
   const mySide: Side | null = useMemo(() => {
     if (!room) return null;
@@ -332,6 +370,9 @@ export function MultiplayerGame({
         state: result.state,
         sunkShipType: result.sunkShip?.type,
         sunkShipCells: sunkCells,
+        sunkShipCustomName: result.sunkShip?.customName,
+        sunkShipCustomSkin: result.sunkShip?.customSkin,
+        sunkShipCustomBadge: result.sunkShip?.customBadge,
         allSunk: allMyShipsSunk,
       };
 
@@ -374,6 +415,16 @@ export function MultiplayerGame({
         }
         return next;
       });
+      if (p.state === "sunk" && p.sunkShipCells && p.sunkShipCells.length > 0) {
+        const synthesized = synthesizeSunkShip(p.sunkShipCells, p.sunkShipType, {
+          customName: p.sunkShipCustomName,
+          customSkin: p.sunkShipCustomSkin,
+          customBadge: p.sunkShipCustomBadge,
+        });
+        if (synthesized) {
+          setEnemyDiscoveredShips((cur) => [...cur, synthesized]);
+        }
+      }
       setPendingShot(null);
       if (p.allSunk) {
         declareWinner(mySide, "🏆 Enemy fleet annihilated!");
@@ -381,7 +432,10 @@ export function MultiplayerGame({
       }
       setTurn(opponentSide!);
       if (p.state === "sunk") {
-        setStatusMsg(`☠ You sank their ${p.sunkShipType}!`);
+        const shipLabel = p.sunkShipCustomName
+          ? `${p.sunkShipCustomBadge ?? ""} ${p.sunkShipCustomName} (${p.sunkShipType})`.trim()
+          : p.sunkShipType;
+        setStatusMsg(`☠ You sank their ${shipLabel}!`);
         spawnReaction(SINK_EMOJIS[Math.floor(Math.random() * SINK_EMOJIS.length)], "mine");
       } else if (p.state === "hit") {
         setStatusMsg("🎯 Direct hit! Opponent's turn.");
@@ -475,6 +529,13 @@ export function MultiplayerGame({
         : "Opponent goes first. Stand by…"
     );
     matchStartedAtRef.current = Date.now();
+    // Grant custom-ship powers exactly once on match start. Mirrors what
+    // GameUI does for AI matches via grantCustomShipPower.
+    if (!customPowersGranted.current) {
+      customPowersGranted.current = true;
+      const profile = loadProfile();
+      if (profile.customShip) grantCustomShipPower(profile);
+    }
     /* eslint-enable react-hooks/set-state-in-effect */
     if (mySide === "p1") void setRoomStatus(roomId, "playing");
   }, [myReady, opponentReady, stage, mySide, roomId]);
@@ -592,7 +653,10 @@ export function MultiplayerGame({
 
   const waitingForOpponent = !opponentId;
   const myBoardData: BoardData = { ships: myShips, shots: myBoardShots };
-  const enemyBoardData: BoardData = { ships: [], shots: enemyShots };
+  const enemyBoardData: BoardData = {
+    ships: enemyDiscoveredShips,
+    shots: enemyShots,
+  };
 
   return (
     <div className="grid lg:grid-cols-[1fr_360px] gap-6 items-start">
@@ -618,8 +682,13 @@ export function MultiplayerGame({
         {stage === "placing" && !myReady && (
           <ShipPlacement
             ships={myShips}
-            onChange={setMyShips}
+            onChange={handleShipsChange}
             onConfirm={confirmPlacement}
+            customShipType={customShip?.type ?? null}
+            customShipName={
+              customShip ? `${customShip.badge} ${customShip.name}` : null
+            }
+            deployCustom={!!customShip}
           />
         )}
 

@@ -127,7 +127,14 @@ export function Board({
                 cellStyle.background = ship.customSkin;
                 cellStyle.boxShadow = "inset 0 0 8px rgba(0,0,0,0.35)";
               }
-              const isShipHead = showShip && ship && shipCells(ship)[0][0] === r && shipCells(ship)[0][1] === c;
+              // Reveal the custom skin underneath the sunk marker too —
+              // both the captain and the attacker get to see whose vessel
+              // just went down (Board renders this on top of .cell.sunk).
+              const showSunkSkin = !!(ship?.customSkin && shotState === "sunk");
+              const isShipHead =
+                ship && shipCells(ship)[0][0] === r && shipCells(ship)[0][1] === c;
+              const showHeadBadge =
+                isShipHead && ship?.customBadge && (showShip || shotState === "sunk");
               const tooltip = ship?.customName
                 ? `${ship.customBadge ?? ""} ${ship.customName} (${ship.type})`
                 : undefined;
@@ -144,9 +151,20 @@ export function Board({
                   style={cellStyle}
                   title={tooltip}
                 >
+                  {showSunkSkin && ship?.customSkin && (
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 rounded-md pointer-events-none"
+                      style={{
+                        background: ship.customSkin,
+                        opacity: 0.55,
+                        mixBlendMode: "screen",
+                      }}
+                    />
+                  )}
                   <CellMark state={shotState} />
                   {hasArrow && <span className="tut-arrow">▼</span>}
-                  {isShipHead && ship?.customBadge && !shotState && (
+                  {showHeadBadge && ship?.customBadge && (
                     <span
                       aria-hidden
                       className="absolute inset-0 grid place-items-center text-[10px] sm:text-xs pointer-events-none"

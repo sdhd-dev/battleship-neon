@@ -40,6 +40,11 @@ export interface ShotResultPayload {
   state: CellState;
   sunkShipType?: ShipType;
   sunkShipCells?: Array<[number, number]>;
+  // Custom-ship metadata revealed to the attacker only when the ship is
+  // sunk — gives them a glimpse of the captain's signature vessel.
+  sunkShipCustomName?: string;
+  sunkShipCustomSkin?: string;
+  sunkShipCustomBadge?: string;
   allSunk: boolean;
 }
 

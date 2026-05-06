@@ -493,11 +493,11 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="grid grid-cols-[minmax(0,1fr)] gap-6"
+            className="grid grid-cols-[minmax(0,1fr)] gap-8 sm:gap-6"
           >
             <Hero />
             <TipOfTheDay />
-            <div className="grid grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4 items-stretch">
+            <div className="grid grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-5 sm:gap-4 items-stretch mt-1 sm:mt-0">
               <TrainingCard onPick={() => setPhase("training")} />
               <SecretWordCard onPick={handleStartSecretWord} />
               <PlayOnlineCard />

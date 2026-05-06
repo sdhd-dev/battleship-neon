@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { MAX_PRICE, MIN_PRICE, validatePrice } from "@/lib/market";
 
@@ -23,6 +24,13 @@ export function ListForSaleDialog({
 }: Props) {
   const [raw, setRaw] = useState<string>("100");
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Render-via-portal needs document — defer until client mount.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -41,6 +49,17 @@ export function ListForSaleDialog({
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Lock body scroll while the modal is up so the page underneath
+  // doesn't shift when the scrollbar disappears.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   const submit = async () => {
     const price = parseInt(raw, 10);
     const err = validatePrice(price);
@@ -52,7 +71,12 @@ export function ListForSaleDialog({
     await onConfirm(price);
   };
 
-  return (
+  // Portal to <body> — parent cards use `.glass` (backdrop-filter), which
+  // creates a containing block and would otherwise pin our `fixed inset-0`
+  // overlay to the card instead of the viewport.
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -61,12 +85,7 @@ export function ListForSaleDialog({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-[180] grid place-items-center p-4"
-          style={{
-            background:
-              "radial-gradient(circle at 50% 50%, rgba(8,12,30,0.85), rgba(0,0,0,0.95))",
-            backdropFilter: "blur(12px)",
-          }}
+          className="fixed inset-0 z-[180] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
         >
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -74,6 +93,8 @@ export function ListForSaleDialog({
             exit={{ scale: 0.95, opacity: 0 }}
             transition={{ type: "spring", stiffness: 280, damping: 22 }}
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
             className="relative w-full max-w-md rounded-3xl p-6 sm:p-7 grid gap-3"
             style={{
               border: "1px solid rgba(0,240,255,0.4)",
@@ -133,6 +154,7 @@ export function ListForSaleDialog({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
