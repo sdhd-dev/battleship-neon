@@ -7,6 +7,7 @@ import clsx from "clsx";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import {
+  BOARD_SIZE,
   Board as BoardData,
   CellState,
   Ship,
@@ -115,6 +116,13 @@ export function MultiplayerGame({
   const winnerRef = useRef<Side | null>(null);
   const gameRecorded = useRef(false);
   const customPowersGranted = useRef(false);
+  // Custom-ship retaliation: every hit the opponent lands on one of my
+  // custom-ship cells queues one bonus shot for me. On my next turn(s),
+  // before my normal shot, I fire one bonus shot at a random unrevealed
+  // enemy cell. The opponent applies it but neither side passes the turn
+  // — it's a true bonus.
+  const [bonusShots, setBonusShots] = useState(0);
+  const bonusFiringRef = useRef(false);
 
   useEffect(() => {
     myShipsRef.current = myShips;
@@ -363,6 +371,15 @@ export function MultiplayerGame({
         ? shipCells(result.sunkShip)
         : undefined;
 
+      // If the opponent's shot landed on one of my custom-ship cells,
+      // queue a bonus shot for my next turn(s).
+      if (result.state === "hit" || result.state === "sunk") {
+        const hitShip = nextBoard.ships.find((s) => s.id === result.shipId);
+        if (hitShip?.customName) {
+          setBonusShots((n) => n + 1);
+        }
+      }
+
       const reply: ShotResultPayload = {
         fromId: myPlayerId,
         r: p.r,
@@ -374,6 +391,7 @@ export function MultiplayerGame({
         sunkShipCustomSkin: result.sunkShip?.customSkin,
         sunkShipCustomBadge: result.sunkShip?.customBadge,
         allSunk: allMyShipsSunk,
+        bonus: p.bonus,
       };
 
       await channel.send({
@@ -384,6 +402,20 @@ export function MultiplayerGame({
 
       if (allMyShipsSunk) {
         declareWinner(opponentSide!, "💀 Your fleet was annihilated.");
+        return;
+      }
+
+      // Bonus shots don't pass the turn — they stay with the sender.
+      if (p.bonus) {
+        if (result.state === "sunk") {
+          setStatusMsg(`☠ Enemy bonus strike sank your ${result.sunkShip?.type}.`);
+          spawnReaction(SINK_EMOJIS[Math.floor(Math.random() * SINK_EMOJIS.length)], "theirs");
+        } else if (result.state === "hit") {
+          setStatusMsg(`💥 Enemy bonus strike hit at ${labelOf(p.r, p.c)}.`);
+          spawnReaction(HIT_EMOJIS[Math.floor(Math.random() * HIT_EMOJIS.length)], "theirs");
+        } else {
+          setStatusMsg(`Enemy bonus strike missed at ${labelOf(p.r, p.c)}.`);
+        }
         return;
       }
 
@@ -428,6 +460,25 @@ export function MultiplayerGame({
       setPendingShot(null);
       if (p.allSunk) {
         declareWinner(mySide, "🏆 Enemy fleet annihilated!");
+        return;
+      }
+      // Bonus shot result: keep my turn, decrement the queue, let the
+      // bonus-firing effect fire the next one (or yield to my normal shot).
+      if (p.bonus) {
+        setBonusShots((n) => Math.max(0, n - 1));
+        bonusFiringRef.current = false;
+        if (p.state === "sunk") {
+          const shipLabel = p.sunkShipCustomName
+            ? `${p.sunkShipCustomBadge ?? ""} ${p.sunkShipCustomName} (${p.sunkShipType})`.trim()
+            : p.sunkShipType;
+          setStatusMsg(`⚓ Retaliation sank their ${shipLabel}!`);
+          spawnReaction(SINK_EMOJIS[Math.floor(Math.random() * SINK_EMOJIS.length)], "mine");
+        } else if (p.state === "hit") {
+          setStatusMsg("⚓ Retaliation strike — direct hit!");
+          spawnReaction(HIT_EMOJIS[Math.floor(Math.random() * HIT_EMOJIS.length)], "mine");
+        } else {
+          setStatusMsg("⚓ Retaliation strike — miss.");
+        }
         return;
       }
       setTurn(opponentSide!);
@@ -573,6 +624,9 @@ export function MultiplayerGame({
       if (turn !== mySide) return;
       if (winner) return;
       if (pendingShot) return;
+      // While bonus shots are queued the auto-effect drives the targeting;
+      // suppress manual clicks so the bonus drains first.
+      if (bonusShots > 0) return;
       const k = cellKey(r, c);
       if (enemyShots.has(k)) return;
       setPendingShot(k);
@@ -583,8 +637,53 @@ export function MultiplayerGame({
         await ch.send({ type: "broadcast", event: "shoot", payload });
       }
     },
-    [stage, turn, mySide, winner, pendingShot, enemyShots, myPlayerId]
+    [stage, turn, mySide, winner, pendingShot, enemyShots, myPlayerId, bonusShots]
   );
+
+  // Custom-ship retaliation: drain bonusShots one at a time on my turn.
+  // Each tick picks a random unrevealed enemy cell and broadcasts a shoot
+  // with bonus=true. Both sides skip turn changes for bonus shots.
+  useEffect(() => {
+    if (stage !== "playing") return;
+    if (turn !== mySide) return;
+    if (winner) return;
+    if (pendingShot) return;
+    if (bonusShots <= 0) return;
+    if (bonusFiringRef.current) return;
+    bonusFiringRef.current = true;
+    const t = window.setTimeout(async () => {
+      // Pick a random unrevealed cell on the enemy board.
+      const remaining: Array<[number, number]> = [];
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          if (!enemyShots.has(cellKey(r, c))) remaining.push([r, c]);
+        }
+      }
+      if (remaining.length === 0) {
+        // Nothing left to shoot — drain the queue silently.
+        setBonusShots(0);
+        bonusFiringRef.current = false;
+        return;
+      }
+      const [r, c] = remaining[Math.floor(Math.random() * remaining.length)];
+      const k = cellKey(r, c);
+      setPendingShot(k);
+      setStatusMsg(`⚓ Custom ship retaliates — bonus shot at ${labelOf(r, c)}…`);
+      const ch = channelRef.current;
+      if (ch) {
+        const payload: ShootPayload = { fromId: myPlayerId, r, c, bonus: true };
+        await ch.send({ type: "broadcast", event: "shoot", payload });
+      } else {
+        // No channel — give up gracefully.
+        setBonusShots(0);
+        bonusFiringRef.current = false;
+        setPendingShot(null);
+      }
+    }, 700);
+    return () => {
+      window.clearTimeout(t);
+    };
+  }, [stage, turn, mySide, winner, pendingShot, bonusShots, enemyShots, myPlayerId]);
 
   const surrender = useCallback(async () => {
     if (winner) return;

@@ -143,6 +143,27 @@ interface SubmitInput {
   note?: string;
 }
 
+// Reject anything that isn't an http(s) URL. Stops `javascript:`,
+// `data:` and other schemes from sneaking into the claim row and
+// later being rendered as an `href` somewhere.
+function isHttpUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+const ALLOWED_IMAGE_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/gif",
+]);
+const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024; // 5MB
+
 export async function submitViralClaim(
   input: SubmitInput
 ): Promise<{ ok: boolean; error?: string; claim?: ViralClaim }> {
@@ -154,6 +175,19 @@ export async function submitViralClaim(
 
   const username = input.username.trim().toLowerCase();
   if (!username) return { ok: false, error: "Sign in first to submit a claim." };
+
+  if (!isHttpUrl(input.postUrl)) {
+    return { ok: false, error: "Post URL must be a full https:// link." };
+  }
+  if (!ALLOWED_IMAGE_MIME.has(input.screenshotFile.type)) {
+    return { ok: false, error: "Screenshot must be a PNG, JPG, WEBP or GIF." };
+  }
+  if (input.screenshotFile.size > MAX_SCREENSHOT_BYTES) {
+    return { ok: false, error: "Screenshot must be 5MB or smaller." };
+  }
+  if (input.note && input.note.length > 500) {
+    return { ok: false, error: "Note must be 500 characters or fewer." };
+  }
 
   // 1. Upload screenshot to storage.
   const ext = input.screenshotFile.name.split(".").pop()?.toLowerCase() || "png";

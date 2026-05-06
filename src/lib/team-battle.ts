@@ -43,6 +43,9 @@ export interface TeamShootPayload {
   targetUserId: string;
   r: number;
   c: number;
+  // Set when the shot is a custom-ship retaliation bonus — target applies
+  // the attack but the turn index does not advance.
+  bonus?: boolean;
 }
 
 export interface TeamShotResultPayload {
@@ -61,6 +64,9 @@ export interface TeamShotResultPayload {
   teamWiped: boolean;             // entire team wiped
   winnerTeam?: 1 | 2;
   nextTurnIndex: number;
+  // Echoed from the originating ShootPayload so the shooter knows whether
+  // to clear pendingShot and continue draining their bonus queue.
+  bonus?: boolean;
 }
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

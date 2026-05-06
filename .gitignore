@@ -42,3 +42,6 @@ next-env.d.ts
 .claude
 CLAUDE.md
 AGENTS.md
+
+# local-only supabase scripts
+supabase/security_fixes.sql

@@ -7,6 +7,7 @@ import clsx from "clsx";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 import {
+  BOARD_SIZE,
   Board as BoardData,
   CellState,
   Ship,
@@ -95,6 +96,12 @@ export function TeamBattleGame({
   const customPowersGranted = useRef(false);
   const handleShotRef = useRef<(p: TeamShootPayload) => void>(() => {});
   const handleResultRef = useRef<(p: TeamShotResultPayload) => void>(() => {});
+  // Custom-ship retaliation: every hit on one of my custom-ship cells
+  // queues one bonus shot. On my turn, before I can target manually, the
+  // bonus queue drains automatically — each fire targets a random alive
+  // enemy at a random unrevealed cell, and the turn index does not move.
+  const [bonusShots, setBonusShots] = useState(0);
+  const bonusFiringRef = useRef(false);
 
   useEffect(() => {
     myShipsRef.current = myShips;
@@ -316,6 +323,8 @@ export function TeamBattleGame({
       if (!room || !channelRef.current) return;
       if (!myTurn) return;
       if (pendingShot) return;
+      // Manual shots are suppressed while bonus shots drain from the queue.
+      if (bonusShots > 0) return;
       const target = members.find((m) => m.user_id === targetUserId);
       if (!target || !target.alive) return;
       if (target.team === myTeam) return;
@@ -332,8 +341,65 @@ export function TeamBattleGame({
       };
       await channelRef.current.send({ type: "broadcast", event: "shoot", payload });
     },
-    [room, myTurn, pendingShot, members, myTeam, myPlayerId]
+    [room, myTurn, pendingShot, members, myTeam, myPlayerId, bonusShots]
   );
+
+  // Custom-ship retaliation: drain the bonus queue on my turn. Each tick
+  // picks a random alive enemy + a random unrevealed cell on their board
+  // and broadcasts a bonus shot. Both sides keep the turn index pinned.
+  useEffect(() => {
+    if (!room || !myTurn) return;
+    if (pendingShot) return;
+    if (bonusShots <= 0) return;
+    if (bonusFiringRef.current) return;
+    if (!myTeam) return;
+    const enemies = members.filter((m) => m.team !== myTeam && m.alive);
+    if (enemies.length === 0) return;
+    bonusFiringRef.current = true;
+    const t = window.setTimeout(async () => {
+      // Pick a random enemy that still has unrevealed cells.
+      const candidates: Array<{ uid: string; r: number; c: number }> = [];
+      for (const e of enemies) {
+        const b = boardsRef.current.get(e.user_id);
+        const shots = b?.shots ?? new Map<string, CellState>();
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          for (let c = 0; c < BOARD_SIZE; c++) {
+            if (!shots.has(cellKey(r, c))) candidates.push({ uid: e.user_id, r, c });
+          }
+        }
+      }
+      if (candidates.length === 0) {
+        setBonusShots(0);
+        bonusFiringRef.current = false;
+        return;
+      }
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const k = cellKey(pick.r, pick.c);
+      setPendingShot(`${pick.uid}|${k}`);
+      setStatusMsg(
+        `⚓ Retaliation in progress — bonus shot at ${"ABCDEFGHIJ"[pick.c]}${pick.r + 1}`
+      );
+      const ch = channelRef.current;
+      if (ch) {
+        const payload: TeamShootPayload = {
+          fromUserId: myPlayerId,
+          fromTeam: myTeam,
+          targetUserId: pick.uid,
+          r: pick.r,
+          c: pick.c,
+          bonus: true,
+        };
+        await ch.send({ type: "broadcast", event: "shoot", payload });
+      } else {
+        setBonusShots(0);
+        bonusFiringRef.current = false;
+        setPendingShot(null);
+      }
+    }, 700);
+    return () => {
+      window.clearTimeout(t);
+    };
+  }, [room, myTurn, pendingShot, bonusShots, members, myTeam, myPlayerId]);
 
   // ── Incoming shot handler ────────────────────────────────
   const handleIncomingShot = useCallback(
@@ -350,6 +416,16 @@ export function TeamBattleGame({
       const sunkCells = result.sunkShip ? shipCells(result.sunkShip) : undefined;
       const targetSunk = allSunk(nextBoard);
 
+      // If the shot landed on one of my custom-ship cells, queue a bonus
+      // shot for myself. (This runs on the target's client only, which is
+      // the right place — only the target knows their full ship list.)
+      if (result.state === "hit" || result.state === "sunk") {
+        const hitShip = nextBoard.ships.find((s) => s.id === result.shipId);
+        if (hitShip?.customName) {
+          setBonusShots((n) => n + 1);
+        }
+      }
+
       // Compute next turn index — advance until we hit a member who is alive.
       const liveMembers = members.map((m) =>
         m.user_id === myPlayerId ? { ...m, alive: !targetSunk } : m
@@ -364,12 +440,18 @@ export function TeamBattleGame({
         : null;
 
       // Advance turn — keep stepping until we land on an alive player.
-      let nextTurn = (room.turn_index + 1) % Math.max(1, liveMembers.length);
-      for (let i = 0; i < liveMembers.length; i++) {
-        const candidate = userIdAtTurn(liveMembers, nextTurn);
-        const member = liveMembers.find((m) => m.user_id === candidate);
-        if (member && member.alive) break;
-        nextTurn = (nextTurn + 1) % Math.max(1, liveMembers.length);
+      // Bonus shots keep the turn with the original shooter so they can
+      // drain their queue.
+      let nextTurn = p.bonus
+        ? room.turn_index
+        : (room.turn_index + 1) % Math.max(1, liveMembers.length);
+      if (!p.bonus) {
+        for (let i = 0; i < liveMembers.length; i++) {
+          const candidate = userIdAtTurn(liveMembers, nextTurn);
+          const member = liveMembers.find((m) => m.user_id === candidate);
+          if (member && member.alive) break;
+          nextTurn = (nextTurn + 1) % Math.max(1, liveMembers.length);
+        }
       }
 
       // Persist locally first.
@@ -396,6 +478,7 @@ export function TeamBattleGame({
         teamWiped,
         winnerTeam: winnerTeam ?? undefined,
         nextTurnIndex: nextTurn,
+        bonus: p.bonus,
       };
       const channel = channelRef.current;
       if (channel) {
@@ -438,6 +521,21 @@ export function TeamBattleGame({
       setPendingShot(null);
       const target = members.find((m) => m.user_id === p.targetUserId);
       const targetName = target?.username ?? "ally";
+      // If this was MY bonus shot, drain one off the queue and let the
+      // bonus-firing effect pick up the next one (or yield to a normal
+      // manual shot once the queue is empty).
+      if (p.bonus && p.fromUserId === myPlayerId) {
+        setBonusShots((n) => Math.max(0, n - 1));
+        bonusFiringRef.current = false;
+        if (p.state === "sunk") {
+          setStatusMsg(`⚓ Retaliation sank ${targetName}'s ship!`);
+        } else if (p.state === "hit") {
+          setStatusMsg(`⚓ Retaliation strike — hit on ${targetName}!`);
+        } else {
+          setStatusMsg(`⚓ Retaliation strike — miss on ${targetName}.`);
+        }
+        return;
+      }
       if (p.state === "sunk") {
         const shipLabel = p.sunkShipCustomName
           ? ` (${p.sunkShipCustomBadge ?? ""} ${p.sunkShipCustomName})`

@@ -31,6 +31,9 @@ export interface ShootPayload {
   fromId: string;
   r: number;
   c: number;
+  // Set when the shot is a custom-ship retaliation bonus — receiver
+  // applies it but neither side passes the turn.
+  bonus?: boolean;
 }
 
 export interface ShotResultPayload {
@@ -46,6 +49,9 @@ export interface ShotResultPayload {
   sunkShipCustomSkin?: string;
   sunkShipCustomBadge?: string;
   allSunk: boolean;
+  // Echoed from the originating ShootPayload so the sender knows whether
+  // to skip the turn change.
+  bonus?: boolean;
 }
 
 function newGuestId(): string {

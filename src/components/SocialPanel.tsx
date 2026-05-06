@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
 import { useAuth } from "./AuthProvider";
 import { buildInviteUrl, fetchReferralStats } from "@/lib/referrals";
+import { safeHref } from "@/lib/safeHref";
 import {
   DEFAULT_POST_TEXT,
   PLATFORMS,
@@ -451,7 +452,7 @@ export function SocialPanel() {
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="capitalize font-semibold">{c.platform}</span>
                             <a
-                              href={c.postUrl}
+                              href={safeHref(c.postUrl)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-accent truncate max-w-[180px]"
@@ -459,7 +460,7 @@ export function SocialPanel() {
                               post ↗
                             </a>
                             <a
-                              href={c.screenshotUrl}
+                              href={safeHref(c.screenshotUrl)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-fg-dim hover:text-fg"

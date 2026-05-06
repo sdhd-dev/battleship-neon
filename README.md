@@ -1,76 +1,296 @@
 # BATTLESHIP.NEON — Naval Combat OS
 
-A modern, single-page Battleship arena built with **Next.js 14**, **TypeScript**, **Tailwind CSS**, **Framer Motion**, and **Supabase**.
+Привет! Это мой пет-проект — переосмысленный «Морской бой», который я допиливал по ночам и в перерывах между лекциями. Начиналось всё как простая сетка 10×10 и три ИИ-противника. А закончилось… ну, читайте дальше — там и кланы, и глобальный маркет, и кастомная мастерская кораблей, и секретные слова, которые надо отгадывать снайперскими залпами.
 
-## Run it
+Я писал этот README честно — без маркетинговой воды. Это игра, которую я строил с любовью и которой реально хочется хвастаться.
 
-```bash
-npm install
-npm run dev
-```
+---
 
-Open http://localhost:3000.
+## 🎮 Что это вообще такое
 
-The game runs fully offline by default — auth and the leaderboard fall back to local profiles + a seeded board. Drop in Supabase keys to enable cloud auth + a global leaderboard:
+Однопользовательский (и многопользовательский!) «Морской бой» нового поколения. Неоновая эстетика, плавные анимации, продвинутый ИИ, экономика, прокачка, кланы, турниры, кастомизация — всё, чего мне самому не хватало в обычной версии игры.
 
-```bash
-# .env.local
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-```
+Запускается локально без какой-либо инфраструктуры — играй сразу. А если подключить Supabase, открываются облачные фичи: глобальная таблица лидеров, мультиплеер, кланы, маркет, промокоды.
 
-Expected Supabase table `leaderboard` with columns: `username (text, primary)`, `city (text)`, `wins (int)`, `accuracy (numeric)`, `rating (int)`, `updated_at (timestamptz)`. Auth uses email magic links via `signInWithOtp`.
+---
 
-## Features
+## 🚀 Фичи (полный список, не врать же себе)
 
-- **10×10 grid** with classical no-touching ship placement rules
-- **Three AI commanders**:
-  - *Cadet* — random shots
-  - *Officer* — neighbor hunt + line-extend after two hits
-  - *Admiral* — full **probability-density** targeting that re-weights each placement when in search-and-destroy mode
-- **Auto-place** + tap-to-place fleet builder with rotate, drag-to-move, and clear-all
-- **Blitz mode** — 3-minute countdown; the timer pulses red below 30s
-- **AI Coach** — after every match it grades you S/A/B/C/D and gives 3–4 strategy notes (accuracy, hunt efficiency, parity discipline, edge bias)
-- **Leaderboard by city** with local seeds + optional Supabase cloud sync
-- **Game history**, win/loss, accuracy stats — persisted to localStorage
-- **Email auth** via Supabase magic links (graceful local fallback when cloud is off)
-- **Upgrade to Pro** modal with 6 ship skins
-- **Dark / light theme** toggle with persisted preference
-- **Mobile responsive** layout, touch-friendly controls
-- **Smooth animations** with Framer Motion (cell taps, hits, sunk reveals, board entrance, bar charts, leaderboard rows)
+### Базовый бой
+- **Сетка 10×10** с классическими правилами — корабли не касаются друг друга
+- **Авто-расстановка** или ручная (тап-плейс): поверни, перетащи, очисти всё
+- **Три ИИ-капитана**:
+  - *Cadet* — стреляет наугад, для тренировки
+  - *Officer* — охота по соседям, после двух попаданий продолжает линию
+  - *Admiral* — серьёзный соперник: вероятностная плотность по всем возможным расстановкам, пересчитывает веса на каждом ходу
+- **Blitz-режим** — 3 минуты на партию, таймер пульсирует красным под 30 секунд
 
-## Project layout
+### ИИ-Тренер (Coach)
+После матча выставляет оценку S/A/B/C/D и даёт 3–4 совета: точность, эффективность охоты, дисциплина чётности (parity), смещение к краям. Я сам по нему учился играть лучше.
 
+### Прогрессия
+- **Уровни 1–100** с экспоненциальной XP-кривой (BASE=100, GROWTH=1.18)
+- **Звания**: Recruit → Cadet → Officer → Captain → Commodore → Admiral → … и дальше
+- **Анимация level-up** — приятный момент, не пропускайте
+- **Ежедневный бонус** за первую победу в сутках
+
+### Силы (Powers) ⚡
+Шесть боевых способностей, которые можно копить и применять в бою:
+- 🎯 **Precision Strike** — гарантированное попадание в случайную клетку врага
+- 💣 **Airstrike** — клетка + 2 в линию
+- 🔍 **Radar Scan** — раскрывает 2×2 без выстрела
+- 🛡️ **Shield** — блокирует следующий вражеский удар
+- 💨 **Smokescreen** — скрывает свои корабли от радара противника
+- ✌️ **Double Shot** — два выстрела за ход
+
+### Режим «Секретное слово» 🔤
+Отдельный режим: на кораблях прячутся буквы, ты должен раскрыть их выстрелами и угадать слово (две попытки). За каждое отгаданное слово — вращение **рулетки** с наградами. Соберёшь все слова — открываешь **Мастерскую кораблей**.
+
+### Мастерская / Гараж кораблей 🛠️
+Кастомные корабли! Выбираешь тип (Destroyer / Submarine / Cruiser / Battleship / Carrier), скин, имя, цвет и до 3 встроенных способностей. Свой собственный флот. Это, пожалуй, моя любимая часть.
+
+### Возмездие кастомного корабля ⚓
+Каждое попадание противника в клетку моего кастомного корабля — это не просто урон. На моём следующем ходу автоматически срабатывает встроенная способность корабля. Корабль на 2 клетки = 2 возможных активации (по одной на каждое полученное попадание), карриер на 5 клеток = до 5 активаций. Это работает во всех режимах:
+- **vs боты** — полноценный авто-фаер: precision, airstrike, radar, shield или smokescreen в зависимости от настроенной способности корабля
+- **онлайн 1v1** — бонусный выстрел по случайной непросмотренной клетке врага без потери хода (кодируется через флаг `bonus` в `ShootPayload` — обе стороны его уважают и не передают ход)
+- **онлайн 3v3** — то же самое, но с учётом командного `turn_index`: цель выбирается из живых врагов, ход остаётся за владельцем корабля
+
+### Магазин 🛒
+- 6 скинов кораблей (от Standard Hull до Abyss Mirror)
+- Темы доски (Cyber Indigo, Ember Forge, Frost Tide и др.)
+- Бейджи (некоторые надо заработать, не купить)
+- Pro-апгрейд за 500 ⚓
+
+### Глобальный маркет 💱
+Игроки выставляют свои силы и кастомные корабли на продажу друг другу. Цены 10–9999 ⚓. Сделки идут через Supabase, статус листинга трекается (`active`/`sold`/`cancelled`).
+
+### Кланы 👥
+- Создание/вступление, эмблема, тег, цвет
+- Банк клана (донаты от участников)
+- Рейтинг кланов по победам
+- Чат внутри клана (live через Supabase Realtime)
+- Роли: leader / officer / member
+
+### Командные битвы 3v3 🎭
+Реалтайм-комнаты по коду: две команды, у каждого свой флот, ходят по очереди, чат с разделением «команда / общий», синхронизация состояния через Supabase channels.
+
+### Турниры 🏆
+Еженедельные турниры. Топ игроков получают реальные денежные призы от автора.
+
+### Лидерборд 🥇
+Таблица лидеров с разбивкой по городам. Видно три ключевых показателя: число побед, точность стрельбы и общий рейтинг игрока. Работает и без интернета — есть начальные данные для оффлайн-режима, а при подключении к облаку результаты автоматически синхронизируются между игроками.
+
+### Промокоды 🎁
+Полноценная система промокодов с серверной валидацией через Supabase RPC (`redeem_promo_code`). Защита от повторного использования, лимиты, expiration. **В конце README — рабочий промокод!**
+
+### Социальное
+- 👥 Реферальная система
+- 💬 Чат-панель в комнатах
+- 🔔 Тосты-уведомления (NeonToast)
+- 🎵 Звуковые эффекты (попадание, потопление, победа)
+- 💡 Tip of the Day — случайный совет на главной
+- 📱 Telegram-сообщество (ссылка в футере)
+- 🎮 Тренировочный режим без штрафов
+
+### UX-мелочи, которыми горжусь
+- Полностью **mobile-first**, тач-контролы
+- **Темы тёмная/светлая** с сохранением в localStorage
+- Анимации Framer Motion везде, где можно: тапы, попадания, потопления, вход доски, бар-чарты, строки лидерборда, level-up, монеты-частицы
+- **Гидрация-safe**: профиль грузится только на клиенте, везде корректно гейтится через `mounted` чтобы не было SSR-mismatch
+- Email-вход через **Supabase magic links** + плавный фоллбек на локальный профиль если облако выключено
+
+---
+
+## 👥 Кто пользователи
+
+- **Школьники и студенты** — хочется поиграть на перемене или в общаге, не хочется регистрироваться. У нас всё работает без регистрации.
+- **Энтузиасты Морского боя** — те, кому надоело играть на бумажке и хочется встретиться с реально умным ИИ.
+- **Геймеры-коллекционеры** — кому нравится копить скины, открывать бейджи, прокачиваться до 100 уровня.
+- **Соревновательная аудитория** — кланы, маркет, турниры, рейтинги.
+- **Друзья компанией** — мультиплеер по комнатам с кодом, командные 3v3, чат.
+
+Сейчас игра живёт в браузере на десктопе и мобиле. Предполагаю, что основная аудитория — Telegram-комьюнити и кампусы.
+
+---
+
+## 🌱 Потенциал
+
+Я вижу несколько направлений:
+1. **Соревновательное** — киберспортивные мини-турниры с призовым фондом, особенно если завернуть в Telegram Mini App.
+2. **Социальное / комьюнити** — кланы и маркет это уже основа; добавить голосовой чат, друзей, инвайты — и получится мини-социалка.
+3. **Educational** — режим Coach реально учит играть.
+4. **Монетизация** — Pro-апгрейд, премиум-скины, премиум-корабли в мастерской. Промо-инфраструктура уже есть.
+5. **Мобильное приложение** — PWA из коробки благодаря Next.js, отдельный билд под iOS/Android реален.
+
+---
+
+## 🛠️ Стандарты и технологии
+
+### Стек
+- **Next.js 16.2** (App Router) — серверные компоненты + клиентские «use client» там, где нужен state
+- **React 19** с новым React Compiler
+- **TypeScript 5** в строгом режиме — никаких `any` без причины
+- **Tailwind CSS 4** + кастомные дизайн-токены (`--accent`, `--accent-2`, `--accent-3`) для смены тем
+- **Framer Motion 12** для всех анимаций
+- **Supabase** — Postgres + Auth + Realtime + RPC
+- **ESLint 9** + `eslint-config-next` + правила React Compiler
+
+### Архитектурные принципы
+- **Локальный first** — игра работает оффлайн без Supabase; облако — это апгрейд, не зависимость
+- **Чистые модули в `lib/game/`** — нет сайд-эффектов, легко тестируется
+- **Phase machine** в GameUI: `menu → placing → playing → over` — никакой каши с состояниями
+- **Безопасные RPC** — промокоды и маркет валидируются на сервере, клиент не доверяется
+- **A11y** — клавиатурная навигация, контрастные цвета, prefers-reduced-motion (планирую расширить)
+- **Mobile-first responsive** — отдельные `MobilePanels` для адаптивов, тач-первичен
+- **Hydration discipline** — гейтинг по `mounted` чтобы серверный рендер не падал
+
+### Структура проекта
 ```
 src/
-├── app/
-│   ├── layout.tsx        # Root layout — Theme + Auth providers
-│   ├── page.tsx          # Main page — TopBar, Game, Stats, Leaderboard
-│   └── globals.css       # Neon/glassmorphism design tokens + animations
-├── components/
-│   ├── AuthProvider.tsx  # Supabase OTP auth, falls back to local profile
-│   ├── ThemeProvider.tsx
-│   ├── TopBar.tsx
-│   ├── Board.tsx
-│   ├── ShipPlacement.tsx
-│   ├── GameUI.tsx        # Phase machine: menu → placing → playing → over
-│   ├── CoachPanel.tsx
-│   ├── StatsPanel.tsx
-│   ├── Leaderboard.tsx
-│   └── UpgradeModal.tsx
+├── app/                    # Next.js App Router
+│   ├── page.tsx            # главная — TopBar, Game, Stats, Leaderboard
+│   ├── shop/               # магазин
+│   ├── workshop/           # мастерская кастомных кораблей (гараж)
+│   ├── market/             # глобальный маркет
+│   ├── clans/              # кланы и их странички
+│   ├── room/[code]         # 1v1 комнаты
+│   ├── team-room/[code]    # 3v3 командные комнаты
+│   └── api/auth            # auth callbacks
+├── components/             # 30+ React-компонентов
 └── lib/
-    ├── game/
-    │   ├── types.ts      # Board, Ship, ShipDef, etc.
-    │   ├── board.ts      # placeShip / canPlace / autoPlace / applyAttack
-    │   ├── ai.ts         # AI state + probability density
-    │   └── coach.ts      # Post-game grading + tips
-    ├── storage.ts        # localStorage + Supabase sync
-    └── supabase/client.ts
+    ├── game/               # чистая логика (board, ai, coach, multiplayer, types)
+    ├── powers.ts           # система способностей + секретных слов
+    ├── progression.ts      # XP-кривая, уровни, награды
+    ├── economy.ts          # монеты, level-up события
+    ├── shop-catalog.ts     # каталог скинов/тем/бейджей
+    ├── workshop.ts         # кастомные корабли
+    ├── clans.ts            # клановая логика
+    ├── market.ts           # глобальный маркет
+    ├── team-battle.ts      # 3v3 реалтайм
+    ├── tournament.ts       # недельные турниры
+    ├── promo.ts            # промокоды
+    ├── referrals.ts        # рефералка
+    ├── social.ts           # друзья/соц
+    ├── safeHref.ts         # XSS-санитайзер пользовательских URL
+    ├── storage.ts          # localStorage + cloud sync
+    └── supabase/           # клиент
+
+supabase/
+├── auth.sql                # username-only auth + синтетические email
+├── economy.sql             # profiles, referrals, weekly_leaderboard
+├── clans.sql + clans_fix   # кланы, банк, миссии, чат
+├── market.sql              # глобальный маркет + RPC market_buy/cancel
+├── multiplayer.sql         # 1v1 комнаты + сообщения
+├── team_battle.sql         # 3v3 комнаты + чат
+├── workshop.sql            # колонки кастомного корабля на profiles
+├── powers.sql              # инвентарь способностей + secret-word прогресс
+├── promo_codes.sql         # промокоды + RPC redeem_promo_code
+├── social.sql              # viral_claims + storage bucket
+├── leaderboard_fix.sql     # колонки rating/wins/accuracy на profiles
+└── security_fixes.sql      # ★ комплексная миграция безопасности — гонять последней
 ```
 
-## Build / lint
+### Что под капотом у Admiral AI
+Probability density: для каждого ещё-не-потопленного корабля считается, во сколько валидных позиций он мог бы влезть с учётом уже сделанных выстрелов. Каждой клетке ставится вес = сумма позиций, проходящих через неё. Стреляем по максимуму. Если попали — переключаемся в режим target и продолжаем волновое распространение, пока не утопим. После этого сбрасываем веса и пересчитываем. Это уже близко к оптимальной стратегии в литературе.
+
+### Безопасность 🔒
+Я провёл полный security-аудит и закрыл уязвимости и в БД, и на фронте:
+
+**База данных (`supabase/security_fixes.sql`)** — единая идемпотентная миграция:
+- **RLS закрыт по принципу least-privilege** на всех таблицах (`profiles`, `clans`, `clan_members`, `market_listings`, `viral_claims`, `weekly_leaderboard`, `referrals`, `team_rooms`, `messages` и др.)
+- **RPC-функции с `SECURITY DEFINER`** проверяют `auth.uid()`: `clan_donate`, `clan_distribute`, `clan_send_to_member`, `clan_record_win`, `market_buy`, `market_cancel` — больше нельзя передать чужой `user_id` и опустошить чужой кошелёк
+- **Промокоды скрыты от прямых клиентских SELECT** — единственный путь чтения это RPC `redeem_promo_code`, иначе можно было бы перечислить все коды
+- **Триггер `profiles_guard_update`** ставит лимиты на прирост `coins/xp/wins/rating/level` за один UPDATE — не даёт читеру прямо записать `coins=999999999`
+- **CHECK-constraint'ы** на длину текста (chat ≤ 500, имена кланов 2–32, описания ≤ 500) и на протоколы URL (`viral_claims.post_url ~* '^https?://'`)
+- **Storage bucket `viral-screenshots`** — только authed, owner = caller, лимит 5MB, MIME-whitelist (PNG/JPG/WEBP/GIF)
+
+**Фронт:**
+- **`src/lib/safeHref.ts`** — санитайзер пользовательских URL, блокирует `javascript:`, `data:`, `vbscript:` и control-символы (`java\tscript:` тоже не пройдёт). Используется в `SocialPanel` для post/screenshot ссылок viral-claims
+- **`src/lib/social.ts`** — клиентская валидация при сабмите: проверка протокола, MIME, размера 5MB, длины note
+- **Чат** — обрезается до 280 символов на сабмите даже если сервер примет больше
+- **`next.config.ts` security headers**:
+  - `Content-Security-Policy` с whitelist Supabase, `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`
+  - `X-Frame-Options: DENY` (clickjacking)
+  - `X-Content-Type-Options: nosniff`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+  - `Permissions-Policy` отключает камеру/микрофон/геолокацию
+
+**Auth (`src/app/api/auth/signup/route.ts`)** — same-origin check (CSRF), in-memory rate-limit per IP (8/мин), regex-валидация username, runtime: nodejs (service-role-key изолирован от Edge bundle), rollback `auth.users` при провале вставки в `profiles`.
+
+---
+
+## 💡 Идеи на будущее
+
+Список хотелок (некоторые уже наполовину сделаны):
+- [ ] **Telegram Mini App** обёртка — самое логичное продолжение
+- [ ] **Голосовой чат** в командных битвах через WebRTC
+- [ ] **Replay-система** — запись и просмотр своих матчей
+- [ ] **Spectator mode** для турниров
+- [ ] **Daily / Weekly missions** с уникальными наградами
+- [ ] **Сезонный пас** (Battle Pass)
+- [ ] **AI-режим обучения** — ИИ-тренер не просто оценивает, а играет с тобой и комментирует ходы
+- [ ] **Открытое API** для модов
+- [ ] **PWA / offline-first** с background sync для мультиплеера
+- [ ] **i18n** — сейчас всё на английском, хочется русский, казахский
+- [ ] **3D-режим** на Three.js или React Three Fiber (мечта)
+- [ ] **Reduced-motion** соблюдение для людей, чувствительных к анимациям
+- [ ] **Тесты** (играю и руками тестирую, но честно — модульных тестов мало; хочу Vitest + Playwright)
+- [ ] **Античит** для маркета — серверная валидация листингов и подозрительных сделок
+
+---
+
+## 🧪 Build & Lint
 
 ```bash
-npm run build   # production build, type-check
-npm run lint    # ESLint (incl. React Compiler rules)
+npm run dev     # dev
+npm run build   # прод-билд + type-check
+npm run lint    # ESLint (включая правила React Compiler)
 ```
+
+---
+
+## 🙏 Благодарность nFactorial
+
+Огромное спасибо команде **nFactorial** за то, что я прошёл во **второй тур**. Для меня это очень много значит — это шанс, мотивация и ответственность одновременно.
+
+### 🎁 Промокод — для команды nFactorial
+
+В благодарность — рабочий промокод, чтобы вы могли зайти, протестить экономику и почувствовать всё на полную:
+
+```
+NFACTORIAL
+```
+
+**Как активировать:**
+1. Откройте игру и зарегистрируйтесь (Supabase magic link, по email)
+2. Перейдите в **Shop** (иконка магазина в TopBar)
+3. Найдите блок **«Activate a code»** на странице магазина
+4. Введите `NFACTORIAL` и нажмите **Activate**
+5. На счёт упадут монеты + эксклюзивный бейдж — пользуйтесь!
+
+> Если облако выключено — промокод не сработает, нужен Supabase. Это серверная RPC-валидация (`redeem_promo_code`), не клиентский хардкод.
+
+---
+
+### 🔓 10 секретных слов — открыть гараж кораблей сразу
+
+Чтобы вам не пришлось проходить весь режим «Секретное слово» (там по букве за матч), вот все 10 кодовых слов. Введите их в **Workshop → Secret Code Input** — и **гараж кораблей** откроется моментально:
+
+```
+BATTLE
+CANNON
+HUNTER
+STEALTH
+TORPEDO
+RADAR
+VESSEL
+STRIKE
+ANCHOR
+SHADOW
+```
+
+После ввода всех десяти разблокируется **Custom Ship Workshop** — конструктор собственного корабля с именем, скином и встроенными способностями.
+
+---
+
+С уважением, Амирлан

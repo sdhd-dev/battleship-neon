@@ -33,7 +33,7 @@ import { TipOfTheDay } from "./TipOfTheDay";
 import { SecretWordMode } from "./SecretWordMode";
 import { loadProfile } from "@/lib/storage";
 import { PowerBar } from "./PowerBar";
-import { POWER_DEFS, PowerType, addPower, consumePower } from "@/lib/powers";
+import { PowerType, consumePower } from "@/lib/powers";
 import { applyCustomShip } from "@/lib/workshop";
 import type { CustomShip } from "@/lib/storage";
 
@@ -87,7 +87,13 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
   const [retreatConfirm, setRetreatConfirm] = useState(false);
   const [customShip, setCustomShip] = useState<CustomShip | null>(null);
   const [deployCustom, setDeployCustom] = useState(false);
-  const customHitTriggered = useRef(false);
+  // Number of queued auto-fires of the custom ship's primary power. Each
+  // time the AI lands a hit on a custom-ship cell we increment this; on
+  // the player's next turn the queued power fires automatically. So a
+  // 2-cell custom ship can fire its ability up to 2 times — once per
+  // hit it absorbs.
+  const [pendingActivations, setPendingActivations] = useState(0);
+  const autoFiringRef = useRef(false);
   const gameRecorded = useRef(false);
 
   useEffect(() => {
@@ -145,7 +151,8 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
     const aiShips = autoPlace();
     const playerShipsWithCustom =
       customShip && deployCustom ? applyCustomShip(playerShips, customShip) : playerShips;
-    customHitTriggered.current = false;
+    setPendingActivations(0);
+    autoFiringRef.current = false;
     setAiBoard({ ships: aiShips, shots: new Map() });
     setPlayerBoard({ ships: playerShipsWithCustom, shots: new Map() });
     setAIState(createAIState(difficulty, SHIP_DEFS.map((d) => d.length)));
@@ -421,24 +428,18 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
       } else {
         setStatusMsg(`The enemy missed at ${labelOf(r, c)}. Your turn.`);
       }
-      // Custom ship: when the enemy first hits any cell of the deployed custom
-      // ship, deploy its picked superpowers into the player's inventory.
+      // Custom ship: every hit on a custom-ship cell queues one auto-fire
+      // of its primary power on the player's next turn. A 2-cell ship can
+      // be hit twice → fires twice; a 5-cell carrier → up to 5 times.
       if (
         (result.state === "hit" || result.state === "sunk") &&
-        !customHitTriggered.current &&
         customShip &&
-        deployCustom
+        deployCustom &&
+        customShip.powers.length > 0
       ) {
         const hitShip = playerBoard.ships.find((s) => s.id === result.shipId);
         if (hitShip?.customName) {
-          customHitTriggered.current = true;
-          for (const p of customShip.powers) addPower(p, 1);
-          if (customShip.powers.length > 0) {
-            const names = customShip.powers
-              .map((p) => `${POWER_DEFS[p].icon} ${POWER_DEFS[p].name}`)
-              .join(" · ");
-            setToast(`⚓ ${customShip.name} struck — powers deployed: ${names}`);
-          }
+          setPendingActivations((n) => n + 1);
         }
       }
       setSmokeTurns((t) => {
@@ -459,6 +460,118 @@ export function GameUI({ onStatsUpdated }: GameUIProps) {
       clearTimeout(timer);
     };
   }, [aiState, customShip, deployCustom, finishGame, phase, playerBoard, pendingShield, smokeCells, turn, winner]);
+
+  // Custom-ship retaliation: when it's the player's turn and we have one
+  // or more queued activations from past hits on the custom ship, fire
+  // its primary power automatically. Each tick fires once and decrements
+  // the queue; the effect re-runs until the queue is drained.
+  useEffect(() => {
+    if (phase !== "playing" || turn !== "player" || winner) return;
+    if (pendingActivations <= 0) return;
+    if (autoFiringRef.current) return;
+    if (!customShip || customShip.powers.length === 0) return;
+    autoFiringRef.current = true;
+    const power = customShip.powers[0];
+    const timer = setTimeout(() => {
+      if (power === "precision") {
+        const remaining: Array<[number, number]> = [];
+        for (const ship of aiBoard.ships) {
+          if (ship.sunk) continue;
+          for (const [sr, sc] of shipCells(ship)) {
+            const k = cellKey(sr, sc);
+            const st = aiBoard.shots.get(k);
+            if (st !== "hit" && st !== "sunk") remaining.push([sr, sc]);
+          }
+        }
+        if (remaining.length > 0) {
+          const [tr, tc] = pickRandom(remaining);
+          const { board: nextBoard, result } = applyAttack(aiBoard, tr, tc);
+          setAiBoard(nextBoard);
+          setShotsFired((n) => n + 1);
+          setShotsHit((n) => n + 1);
+          setToast(`⚓ ${customShip.name} retaliates — 🎯 Precision hit at ${labelOf(tr, tc)}!`);
+          if (result.win) {
+            setPendingActivations(0);
+            autoFiringRef.current = false;
+            finishGame("player", "🏆 Enemy fleet annihilated.");
+            return;
+          }
+        } else {
+          setToast(`⚓ ${customShip.name} retaliates — no enemy ships left to strike.`);
+        }
+      } else if (power === "airstrike") {
+        const candidates: Array<Array<[number, number]>> = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          for (let c = 0; c <= BOARD_SIZE - 3; c++) {
+            const row: Array<[number, number]> = [[r, c], [r, c + 1], [r, c + 2]];
+            if (row.some(([rr, cc]) => !aiBoard.shots.has(cellKey(rr, cc)))) {
+              candidates.push(row);
+            }
+          }
+        }
+        if (candidates.length > 0) {
+          const cells = pickRandom(candidates);
+          let board = aiBoard;
+          let hits = 0;
+          let fired = 0;
+          let didWin = false;
+          for (const [cr, cc] of cells) {
+            if (board.shots.has(cellKey(cr, cc))) continue;
+            const { board: next, result } = applyAttack(board, cr, cc);
+            board = next;
+            fired += 1;
+            if (result.state === "hit" || result.state === "sunk") hits += 1;
+            if (result.win) didWin = true;
+          }
+          setAiBoard(board);
+          setShotsFired((n) => n + fired);
+          setShotsHit((n) => n + hits);
+          setToast(`⚓ ${customShip.name} retaliates — 💣 Airstrike: ${hits}/${fired} hits.`);
+          if (didWin) {
+            setPendingActivations(0);
+            autoFiringRef.current = false;
+            finishGame("player", "🏆 Enemy fleet annihilated.");
+            return;
+          }
+        } else {
+          setToast(`⚓ ${customShip.name} retaliates — airstrike found no targets.`);
+        }
+      } else if (power === "radar") {
+        const r = Math.floor(Math.random() * (BOARD_SIZE - 1));
+        const c = Math.floor(Math.random() * (BOARD_SIZE - 1));
+        const cells: Array<[number, number]> = [];
+        for (let dr = 0; dr < 2; dr++) for (let dc = 0; dc < 2; dc++) cells.push([r + dr, c + dc]);
+        setScannedCells((cur) => mergeCells(cur, cells));
+        setToast(`⚓ ${customShip.name} retaliates — 🔍 Radar pulse at ${labelOf(r, c)}.`);
+      } else if (power === "shield") {
+        setPendingShield(true);
+        setToast(`⚓ ${customShip.name} retaliates — 🛡️ Shield armed.`);
+      } else if (power === "smokescreen") {
+        const r = Math.floor(Math.random() * (BOARD_SIZE - 2));
+        const c = Math.floor(Math.random() * (BOARD_SIZE - 2));
+        const next = new Set<string>();
+        for (let dr = 0; dr < 3; dr++)
+          for (let dc = 0; dc < 3; dc++) next.add(cellKey(r + dr, c + dc));
+        setSmokeCells(next);
+        setSmokeTurns(2);
+        setToast(`⚓ ${customShip.name} retaliates — 💨 Smokescreen deployed.`);
+      }
+      setPendingActivations((n) => Math.max(0, n - 1));
+      autoFiringRef.current = false;
+    }, 600);
+    return () => {
+      clearTimeout(timer);
+      autoFiringRef.current = false;
+    };
+  }, [
+    phase,
+    turn,
+    winner,
+    pendingActivations,
+    customShip,
+    aiBoard,
+    finishGame,
+  ]);
 
   const reset = () => {
     setPhase("menu");

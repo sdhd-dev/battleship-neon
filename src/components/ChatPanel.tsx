@@ -55,7 +55,7 @@ export function ChatPanel({
   }, [messages.length]);
 
   const submit = () => {
-    const text = draft.trim();
+    const text = draft.trim().slice(0, 280);
     if (!text || disabled) return;
     onSend(text);
     setDraft("");
