@@ -158,7 +158,7 @@ insert into public.promo_codes (code, reward_coins, reward_cosmetic, max_uses, e
 values
   ('WELCOME2025', 100, null, null, null, true),
   ('ADMIRAL', 0, 'admiral', null, null, true),
-  ('NFACTORIAL', 1500, null, 100, null, true)
+  ('NFACTORIAL', 5000, null, 100, null, true)
 on conflict (code) do update set
   reward_coins = excluded.reward_coins,
   reward_cosmetic = excluded.reward_cosmetic,
