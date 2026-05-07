@@ -186,7 +186,7 @@ export async function buyListing(
           ? "You can't buy your own listing."
           : result?.error === "unavailable"
             ? "Already sold."
-            : error?.message ?? "Purchase failed.";
+            : "Purchase failed. Try again.";
     notify(reason, "error");
     return { ok: false, error: reason };
   }
