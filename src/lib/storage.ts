@@ -441,6 +441,24 @@ export async function syncCloudProfile(profile: LocalProfile) {
     .then(() => undefined, () => undefined);
 }
 
+// Pulls cloud profile and merges authoritative economy/cosmetic fields
+// into localStorage. Returns the resulting local profile, or null when
+// cloud sync is off / not signed in. Cloud wins for coins/xp/etc.; local
+// wins for username (user might be mid-edit).
+export async function refreshProfileFromCloud(): Promise<LocalProfile | null> {
+  const remote = await pullCloudProfile();
+  if (!remote) return null;
+  const local = loadProfile();
+  const merged: LocalProfile = {
+    ...local,
+    ...remote,
+    username: local.username || remote.username || local.username,
+    isGuest: false,
+  };
+  saveProfile(merged);
+  return merged;
+}
+
 export async function pullCloudProfile(): Promise<Partial<LocalProfile> | null> {
   if (!supabaseEnabled()) return null;
   const sb = getSupabase();

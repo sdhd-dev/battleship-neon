@@ -20,6 +20,7 @@ import {
 } from "@/lib/market";
 import { findShipKind, findSkin } from "@/lib/workshop";
 import { getSupabase } from "@/lib/supabase/client";
+import { refreshProfileFromCloud } from "@/lib/storage";
 
 type Filter = "all" | "power" | "ship";
 type Sort = "newest" | "cheapest" | "expensive";
@@ -58,6 +59,12 @@ export default function MarketPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     void refresh();
+    // Pull authoritative coin balance from cloud so the buy gate and the
+    // header card don't show a stale 0 (fresh device, prior tab spent on
+    // another page, realtime not yet enabled, etc.). saveProfile inside
+    // refreshProfileFromCloud broadcasts a change event that AuthProvider
+    // picks up to refresh `profile` in the React tree.
+    void refreshProfileFromCloud();
   }, [refresh, cloudEnabled]);
 
   // Realtime: listen to inserts/updates on market_listings and refetch.

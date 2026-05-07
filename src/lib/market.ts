@@ -5,6 +5,7 @@ import {
   CustomShip,
   LocalProfile,
   loadProfile,
+  refreshProfileFromCloud,
   saveProfile,
   syncCloudProfile,
 } from "./storage";
@@ -158,12 +159,12 @@ export async function buyListing(
     return { ok: false, error: "You can't buy your own listing." };
   }
 
-  const before = loadProfile();
+  // Cloud is the source of truth for coins. Local can lag (fresh device,
+  // realtime not enabled, recent gain on another tab), so don't gate on
+  // local — refresh from cloud first, then let the RPC make the final call.
+  const fresh = await refreshProfileFromCloud();
+  const before = fresh ?? loadProfile();
   const balance = before.coins ?? 0;
-  if (balance < listing.price) {
-    notify("Insufficient coins.", "error");
-    return { ok: false, error: "Insufficient coins." };
-  }
 
   const { data, error } = await sb.rpc("market_buy", {
     p_listing_id: listing.id,
@@ -173,6 +174,11 @@ export async function buyListing(
 
   const result = (data ?? null) as { ok?: boolean; error?: string } | null;
   if (error || (result && result.ok === false)) {
+    // If the server says insufficient, force-resync local to cloud so the
+    // UI stops showing a stale balance.
+    if (result?.error === "insufficient") {
+      void refreshProfileFromCloud();
+    }
     const reason =
       result?.error === "insufficient"
         ? "Insufficient coins."
