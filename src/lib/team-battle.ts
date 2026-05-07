@@ -191,6 +191,29 @@ export async function joinTeamRoomByCode(
   return { ok: true, room: updated as TeamRoomRow };
 }
 
+export async function leaveTeamRoom(
+  roomId: string,
+  userId: string
+): Promise<void> {
+  const sb = getSupabase();
+  if (!sb) return;
+  const room = await fetchTeamRoomById(roomId);
+  // Only prune lobby leavers — once placement starts the seat is load-bearing
+  // for turn rotation and finalize logic, so abandoning users stay visible
+  // (the existing disconnect handling in the match flow takes over).
+  if (!room || room.status !== "waiting") return;
+  await sb
+    .from("team_room_members")
+    .delete()
+    .eq("room_id", roomId)
+    .eq("user_id", userId);
+  const next = {
+    team1_ids: room.team1_ids.filter((id) => id !== userId),
+    team2_ids: room.team2_ids.filter((id) => id !== userId),
+  };
+  await sb.from("team_rooms").update(next).eq("id", roomId);
+}
+
 export async function switchTeam(
   roomId: string,
   userId: string,

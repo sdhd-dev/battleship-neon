@@ -34,6 +34,7 @@ import {
   fetchTeamMembers,
   fetchTeamRoomByCode,
   joinTeamRoomByCode,
+  leaveTeamRoom,
   persistShotResult,
   sendTeamChat,
   setReady,
@@ -73,6 +74,7 @@ export function TeamBattleGame({
 }: TeamBattleGameProps) {
   const [room, setRoom] = useState<TeamRoomRow | null>(null);
   const [members, setMembers] = useState<TeamRoomMemberRow[]>([]);
+  const [presentIds, setPresentIds] = useState<Set<string>>(() => new Set());
   const [chat, setChat] = useState<TeamChatRow[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -190,8 +192,15 @@ export function TeamBattleGame({
     if (!room) return;
     const sb = getSupabase();
     if (!sb) return;
-    const channel = sb.channel(`team-room:${room.id}`);
+    const channel = sb.channel(`team-room:${room.id}`, {
+      config: { presence: { key: myPlayerId } },
+    });
     channelRef.current = channel;
+
+    channel.on("presence", { event: "sync" }, () => {
+      const state = channel.presenceState();
+      setPresentIds(new Set(Object.keys(state)));
+    });
 
     channel.on(
       "postgres_changes",
@@ -226,13 +235,17 @@ export function TeamBattleGame({
       handleResultRef.current(payload as TeamShotResultPayload);
     });
 
-    channel.subscribe();
+    channel.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        await channel.track({ user_id: myPlayerId });
+      }
+    });
     return () => {
       channel.unsubscribe();
       channelRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.id]);
+  }, [room?.id, myPlayerId]);
 
   // ── Build my board view from my own ships + recorded incoming shots ───
   useEffect(() => {
@@ -301,14 +314,67 @@ export function TeamBattleGame({
     team2Members.length === 3 &&
     members.every((m) => m.ready);
 
-  // Leader (first joiner of team1) starts the match once all are ready.
-  const isLeader = members[0]?.user_id === myPlayerId;
+  // Leader = earliest joiner who's still present. If the original leader's
+  // tab dies, the next present member inherits leader-only duties (start
+  // match, prune ghosts) so the lobby never stalls.
+  const isLeader = useMemo(() => {
+    const present = members.filter(
+      (m) => presentIds.has(m.user_id) || m.user_id === myPlayerId
+    );
+    const pool = present.length > 0 ? present : members;
+    return pool[0]?.user_id === myPlayerId;
+  }, [members, presentIds, myPlayerId]);
   useEffect(() => {
     if (!isLeader || !room) return;
     if (room.status !== "waiting") return;
     if (!allReady) return;
     void startTeamMatch(room.id);
   }, [isLeader, allReady, room]);
+
+  // Graceful self-leave: when the captain navigates away or closes the tab
+  // mid-lobby, drop our row immediately so peers don't have to wait out the
+  // presence grace period. We read room.id and stage through refs so the
+  // cleanup keeps working across StrictMode remounts and stage changes.
+  const stageRef = useRef<Stage>(stage);
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
+  const roomIdForLeaveRef = useRef<string | null>(null);
+  useEffect(() => {
+    roomIdForLeaveRef.current = room?.id ?? null;
+  }, [room?.id]);
+  useEffect(() => {
+    const leave = () => {
+      const rid = roomIdForLeaveRef.current;
+      if (!rid) return;
+      if (stageRef.current !== "lobby") return;
+      void leaveTeamRoom(rid, myPlayerId);
+    };
+    window.addEventListener("pagehide", leave);
+    return () => {
+      window.removeEventListener("pagehide", leave);
+      leave();
+    };
+  }, [myPlayerId]);
+
+  // Leader prunes lobby members whose presence has been gone for a grace
+  // period. Without this, a captain who closes their tab leaves a ghost
+  // tile in the team column that nobody can dismiss.
+  useEffect(() => {
+    if (!isLeader || !room) return;
+    if (room.status !== "waiting") return;
+    if (presentIds.size === 0) return;
+    const ghosts = members.filter(
+      (m) => m.user_id !== myPlayerId && !presentIds.has(m.user_id)
+    );
+    if (ghosts.length === 0) return;
+    const t = window.setTimeout(() => {
+      for (const g of ghosts) {
+        void leaveTeamRoom(room.id, g.user_id);
+      }
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [isLeader, room, presentIds, members, myPlayerId]);
 
   // Whose turn is it?
   const turnUserId = useMemo(
