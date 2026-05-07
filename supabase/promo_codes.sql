@@ -64,7 +64,15 @@ as $$
 declare
   v_code public.promo_codes%rowtype;
   v_already int;
+  v_new_balance int;
+  v_new_cosmetics text[];
 begin
+  -- The caller must be redeeming for themselves. Prevents one user from
+  -- burning a unique-use code on someone else's account.
+  if auth.uid() is null or auth.uid() <> p_user_id then
+    return json_build_object('ok', false, 'error', 'auth');
+  end if;
+
   -- Lock the row for the duration of this transaction.
   select * into v_code
     from public.promo_codes
@@ -102,10 +110,43 @@ begin
     set uses_count = uses_count + 1
     where code = v_code.code;
 
+  -- Credit the reward server-side so the per-update growth cap on
+  -- profiles can't silently drop large promo rewards. Bypass the guard
+  -- trigger transaction-locally — only this RPC's updates inherit the
+  -- bypass, the user's later direct PATCHes do not.
+  perform set_config('app.guard_bypass', 'on', true);
+
+  if v_code.reward_coins > 0 then
+    update public.profiles
+       set coins = coalesce(coins, 0) + v_code.reward_coins
+     where id = p_user_id;
+  end if;
+
+  if v_code.reward_cosmetic is not null then
+    update public.profiles
+       set owned_cosmetics =
+         case
+           when owned_cosmetics is null then array[v_code.reward_cosmetic]
+           when v_code.reward_cosmetic = any(owned_cosmetics) then owned_cosmetics
+           else owned_cosmetics || v_code.reward_cosmetic
+         end
+     where id = p_user_id;
+  end if;
+
+  -- Read back the post-credit state so the client can update its local
+  -- snapshot without a second round-trip (and without trying to push
+  -- the new balance back through the guard trigger).
+  select coalesce(coins, 0), coalesce(owned_cosmetics, '{}'::text[])
+    into v_new_balance, v_new_cosmetics
+    from public.profiles
+    where id = p_user_id;
+
   return json_build_object(
     'ok', true,
     'reward_coins', v_code.reward_coins,
-    'reward_cosmetic', v_code.reward_cosmetic
+    'reward_cosmetic', v_code.reward_cosmetic,
+    'new_balance', v_new_balance,
+    'owned_cosmetics', v_new_cosmetics
   );
 end;
 $$;

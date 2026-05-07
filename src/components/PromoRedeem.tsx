@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "./AuthProvider";
 import { redeemPromoCode } from "@/lib/promo";
-import { loadProfile } from "@/lib/storage";
+import { loadProfile, saveProfile } from "@/lib/storage";
 import { emitCoinGain } from "@/lib/economy";
 import { notify } from "@/lib/notify";
 
@@ -15,7 +15,7 @@ interface SuccessState {
 }
 
 export function PromoRedeem() {
-  const { setProfile, username, cloudEnabled } = useAuth();
+  const { username, cloudEnabled } = useAuth();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,16 +37,17 @@ export function PromoRedeem() {
       return;
     }
 
-    // Apply rewards to local profile (cloud profile will sync via setProfile).
+    // The RPC already credited coins and unlocked the cosmetic on the
+    // server (the profiles guard trigger caps +>500 client updates, so
+    // we must NOT push an additive update from here). Mirror the
+    // authoritative post-credit state into local storage; AuthProvider's
+    // `bs:profilechange` listener will refresh the React tree.
     const current = loadProfile();
-    const owned = new Set(current.ownedCosmetics ?? []);
-    if (result.rewardCosmetic) owned.add(result.rewardCosmetic);
-    const next = {
+    saveProfile({
       ...current,
-      coins: (current.coins ?? 0) + result.rewardCoins,
-      ownedCosmetics: Array.from(owned),
-    };
-    setProfile(next);
+      coins: result.newBalance,
+      ownedCosmetics: result.ownedCosmetics,
+    });
     if (result.rewardCoins > 0) {
       emitCoinGain(result.rewardCoins, "promo");
       notify(`⚓ +${result.rewardCoins.toLocaleString()} coins from promo code!`, "success");

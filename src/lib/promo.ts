@@ -17,6 +17,12 @@ export interface PromoSuccess {
   rewardCoins: number;
   rewardCosmetic: string | null;
   cosmeticName: string | null;
+  // Authoritative post-credit state from the server. The client should
+  // use these directly instead of locally adding `rewardCoins` — the
+  // profiles guard trigger blocks +>500 client-side updates, so any
+  // additive sync would silently drop the reward.
+  newBalance: number;
+  ownedCosmetics: string[];
 }
 
 export interface PromoFailure {
@@ -65,6 +71,8 @@ export async function redeemPromoCode(rawCode: string): Promise<PromoResult> {
     error?: PromoErrorCode;
     reward_coins?: number;
     reward_cosmetic?: string | null;
+    new_balance?: number;
+    owned_cosmetics?: string[] | null;
   };
 
   if (!payload.ok) {
@@ -82,5 +90,9 @@ export async function redeemPromoCode(rawCode: string): Promise<PromoResult> {
     rewardCoins: payload.reward_coins ?? 0,
     rewardCosmetic,
     cosmeticName,
+    newBalance: payload.new_balance ?? 0,
+    ownedCosmetics: Array.isArray(payload.owned_cosmetics)
+      ? payload.owned_cosmetics
+      : [],
   };
 }
