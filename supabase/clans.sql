@@ -137,6 +137,7 @@ create policy "clan_chat_delete" on public.clan_chat for delete using (true);
 -- ── RPC: donate to clan bank ────────────────────────────────
 -- Atomically deducts coins from the donor's profile and adds them to
 -- the clan bank + the donor's contributed_coins counter.
+drop function if exists public.clan_donate(uuid, uuid, int) cascade;
 create or replace function public.clan_donate(
   p_clan_id uuid,
   p_user_id uuid,
@@ -173,6 +174,7 @@ grant execute on function public.clan_donate(uuid, uuid, int) to anon, authentic
 -- ── RPC: distribute bank coins to all members ───────────────
 -- Pays each member `p_amount` coins. Caller must verify leadership;
 -- this function only enforces the bank balance.
+drop function if exists public.clan_distribute(uuid, int) cascade;
 create or replace function public.clan_distribute(
   p_clan_id uuid,
   p_amount int
@@ -212,6 +214,7 @@ grant execute on function public.clan_distribute(uuid, int) to anon, authenticat
 -- ── RPC: record a clan win ───────────────────────────────────
 -- Bumps clan total_wins, progresses any active 'wins' mission for the
 -- current week, and credits the bank if the mission completes.
+drop function if exists public.clan_record_win(uuid) cascade;
 create or replace function public.clan_record_win(
   p_clan_id uuid
 )

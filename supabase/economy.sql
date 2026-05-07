@@ -66,7 +66,7 @@ create table if not exists public.weekly_leaderboard (
   accuracy real not null default 0,
   rating int not null default 1000,
   updated_at timestamptz not null default now(),
-  primary key (lower(username), week_start)
+  primary key (username, week_start)
 );
 
 create index if not exists weekly_leaderboard_week_rating_idx
