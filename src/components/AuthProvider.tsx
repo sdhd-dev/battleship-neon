@@ -119,9 +119,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!cloudEnabled) return;
     const sb = getSupabase();
     if (!sb) return;
+    // Tracks the realtime channel for the active user so we can tear it
+    // down on sign-out / user switch without leaking subscriptions.
+    let activeChannel: ReturnType<typeof sb.channel> | null = null;
+    const teardownChannel = () => {
+      if (activeChannel) {
+        sb.removeChannel(activeChannel);
+        activeChannel = null;
+      }
+    };
     // The synthetic email no longer encodes the username — look the row up
     // by user id and read the canonical username from `profiles`.
     const resolveByUserId = async (userId: string | null | undefined) => {
+      teardownChannel();
       if (!userId) {
         setUsername(null);
         return;
@@ -133,7 +143,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
       const name = data?.username ?? null;
       setUsername(name);
-      if (name) void hydrateFromCloud(name);
+      if (!name) return;
+      void hydrateFromCloud(name);
+      // Realtime subscription on this user's profiles row so changes from
+      // another device (sale on phone → coins on cloud) reflect on this
+      // device without a refresh.
+      activeChannel = sb
+        .channel(`profile:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "profiles",
+            filter: `id=eq.${userId}`,
+          },
+          () => {
+            void hydrateFromCloud(name);
+          }
+        )
+        .subscribe();
     };
     sb.auth.getUser().then(({ data }) => resolveByUserId(data.user?.id));
     const { data: sub } = sb.auth.onAuthStateChange((_e, session) => {
@@ -141,6 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     return () => {
       sub.subscription.unsubscribe();
+      teardownChannel();
     };
   }, [cloudEnabled]);
 
