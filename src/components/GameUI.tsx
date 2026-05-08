@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import clsx from "clsx";
@@ -1214,14 +1214,31 @@ function mergeCells(
 
 function TeamBattleCard() {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, isGuest } = useAuth();
   const cloud = supabaseEnabled();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ReactNode | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [joining, setJoining] = useState(false);
 
+  const guestPrompt = (action: "host" | "join") => (
+    <>
+      Sign in to {action} a team room — guests can&apos;t use online servers.{" "}
+      <button
+        type="button"
+        onClick={() => router.push("/auth?tab=signup")}
+        className="underline font-semibold"
+      >
+        Sign up
+      </button>
+    </>
+  );
+
   const onCreate = async () => {
+    if (isGuest) {
+      setError(guestPrompt("host"));
+      return;
+    }
     if (!cloud) {
       setError("Team Battle requires Supabase env vars.");
       return;
@@ -1240,6 +1257,10 @@ function TeamBattleCard() {
   };
 
   const onJoin = async () => {
+    if (isGuest) {
+      setError(guestPrompt("join"));
+      return;
+    }
     if (!cloud) {
       setError("Team Battle requires Supabase env vars.");
       return;
@@ -1334,12 +1355,30 @@ function TeamBattleCard() {
 
 function PlayOnlineCard() {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { profile, isGuest } = useAuth();
   const cloud = supabaseEnabled();
   const [creating, setCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ReactNode | null>(null);
 
   const onPlayOnline = async () => {
+    if (isGuest) {
+      setError(
+        <>
+          Sign in to create an online room — guests can&apos;t host servers.{" "}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push("/auth?tab=signup");
+            }}
+            className="underline font-semibold"
+          >
+            Sign up
+          </button>
+        </>
+      );
+      return;
+    }
     if (!cloud) {
       setError("Online play requires Supabase env vars.");
       return;
